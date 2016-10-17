@@ -1,0 +1,195 @@
+Monitoring and Managing Open Cursors
+------------------------------------
+http://www.orafaq.com/node/758
+
+set timing on
+set echo on
+spool c:\temp\open_cursors.log
+select value, name from v$sysstat where statistic# in (2,3)
+/
+COLUMN user_name    heading Username
+COLUMN num          heading "Open Cursors"
+SET lines 80 pages 59
+SELECT user_name, sid,COUNT (*) num
+  FROM v$open_cursor
+ GROUP BY user_name,sid
+order by num;
+CLEAR columns
+TTITLE off
+SET pages 22
+/
+
+select a.value, s.username, s.sid, s.serial#
+from v$sesstat a, v$statname b, v$session s
+where a.statistic# = b.statistic#  and s.sid=a.sid 
+and b.name = 'opened cursors current' order by s.username
+/
+
+select a.value, s.username
+from v$sesstat a, v$statname b, v$session s
+where a.statistic# = b.statistic#  and s.sid=a.sid 
+and b.name = 'opened cursors current'   and s.username='POINTSR' order by s.username 
+/
+
+
+SELECT c.sid,username,osuser,machine, count(*) "open cursors"
+FROM v$open_cursor c, v$session s
+where c.sid=s.sid
+ GROUP BY c.sid,username,osuser,machine
+ ORDER BY count(*) desc
+/
+
+--With full sql_text
+
+select c.sid,c.user_name,e.OSUSER,e.MACHINE,c.hash_value,s.sql_text,s.first_load_time,s.LAST_LOAD_TIME from v$sql s,v$open_cursor c,v$session e 
+where  e.sid=c.SID and e.sql_address= s.address(+) and c.user_name='POINTSR'
+/
+
+SELECT s.sid,s.username,s.program,count(*) num,a.sql_text
+FROM v$session s,v$open_cursor a
+WHERE s.sid = a.sid (+)
+AND s.username IS NOT NULL
+GROUP BY s.sid,s.username,s.program,a.sql_text
+HAVING count(*) > 1
+ORDER BY s.sid
+/
+
+
+SELECT c.sid,username,osuser,machine, count(*) "open cursors"
+FROM v$open_cursor c, v$session s
+where c.sid=s.sid
+ GROUP BY c.sid,username,osuser,machine
+ ORDER BY count(*) desc
+/
+ 
+ 
+ select max(a.value) as highest_open_cur, p.value as max_open_cur
+   from v$sesstat a, v$statname b, v$parameter p
+   where a.statistic# = b.statistic# 
+   and b.name = 'opened cursors current'
+   and p.name= 'open_cursors'
+   group by p.value
+/
+
+ select a.value, s.username, s.sid, s.serial#
+   from v$sesstat a, v$statname b, v$session s
+    where a.statistic# = b.statistic#  and s.sid=a.sid
+    and b.name = 'opened cursors current'
+/
+
+SELECT
+    sid, user_name, COUNT(*) "Cursors per session"
+    FROM v$open_cursor
+    GROUP BY sid, user_name
+/
+spool off
+----------------------------------------------------------------------------
+The number of open cursors can limit operation in PL/SQL procedures and 
+SQL*Plus sessions.  While the parameter open_cursors sets the limit, 
+programming issues can cause the following error:
+
+   ORA-1000 maximum open cursors exceeded
+
+Three important values are the following:
+
+  o init.ora parameter open_cursors
+  o v$open_cursor view 
+  o v$sysstat view 
+
+These values are similar, but differ in their accounting of Dynamic Cursors.
+
+  Note:  Dynamic cursors are those opened using dbms_sql.open_cursor().
+
+The means to compute those values are as follows:
+
+>>> View v$open_cursor
+
+    'select count(*) from v$open_cursor' =>  
+        implicit cursors used + 
+        distinct explicit cursors opened + 
+        dynamic cursors PARSED and NOT CLOSED. 
+
+    - Accumulates dynamic cursors PARSED and NOT CLOSED over a session
+    - Available to system/manager
+    - Includes the text of open cursors - helpful for debugging
+    - Since this view does not track unparsed (but opened) dynamic cursors,
+      the count(*) may not show all cursors that count against open_cursors.
+
+>>> View v$sysstat
+
+    'select value from v$sysstat where statistic# = 3' =>
+        implicit cursors used + 
+        distinct explicit cursors opened + 
+        dynamic cursors OPENED. 
+
+    - Accumulates dynamic cursors OPENED and NOT CLOSED over a session
+    - Available to system/manager
+    - Since this view does track unparsed (but opened) dynamic cursors,
+      the statistic#3  shows all cursors that count against open_cursors.
+
+
+>>> init.ora parameter open_cursors = 
+        implicit cursors used + 
+        distinct explicit cursors opened + 
+        dynamic cursors OPENED. 
+
+    - Accumulates dynamic cursors OPENED and NOT CLOSED over a session
+ 
+
+ORA-1000
+--------
+
+The following are several items to check when encountering ORA-1000 in 
+PL/SQL:
+
+1. Be sure that all dbms_sql cursors opened at DECLARE time are closed. 
+   Every unclosed OPEN counts against open_cursors.  The number of open 
+   cursors can be determined as follows in SQL*Plus:
+
+      select value from v$sysstat where statistic# = 3
+
+2. Be aware that v$open_cursor only tracks the CUMULATIVE number of 
+   implicit + distinct explicit cursors in the procedure PLUS unclosed 
+   dynamic cursors that have been PARSED in the session.
+
+   Note:  It does not include any dynamic cursors that were opened but 
+          not parsed.
+
+   The text of the parsed, open cursors can be determined as follows 
+   in SQL*Plus:
+
+      select sql_text from v$open_cursor
+
+3. Dynamic cursors persist from run-to-run in a session, but are not 
+   closeable after a procedure has completed.  This can accumulate and 
+   error-out with open_cursors after a number of runs.  They will not 
+   appear in v$open_cursors after a session.
+
+
+The following are two code snippets that can help diagnose ORA-1000.  Text
+lines are shown for each cursor. 
+
+-- snippet 1
+declare
+  cursor opencur is select * from v$open_cursor;
+  ccount number;
+begin
+  select count(*) into ccount from v$open_cursor;
+  dbms_output.put_line(' Num cursors open is '||ccount);
+  ccount := 0;
+-- get text of open/parsed cursors
+  for vcur in opencur loop
+    ccount := ccount + 1;
+    dbms_output.put_line(' Cursor #'||ccount);
+    dbms_output.put_line('     text: '|| vcur.sql_text);
+  end loop;
+end;
+
+-- snippet 2
+select value, name from v$sysstat where statistic# in (2,3);
+
+
+Related Information
+-------------------
+
+"Oracle 8i Reference [Data Dictionary]", (A67790-01) page 3-70, page 3-119

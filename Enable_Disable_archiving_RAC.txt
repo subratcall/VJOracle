@@ -1,0 +1,20 @@
+sqlplus /
+connect / as sysdba
+archive log list
+alter system set cluster_database=false scope=spfile sid='prddw11';
+exit
+srvctl stop database -d prddw1
+sqlplus /nolog
+connect / as sysdba
+startup mount;
+archive log list;
+alter database noarchivelog;
+alter system set cluster_database=true scope=spfile sid='prddw11';
+shutdown immediate;
+exit
+srvctl start database -d prddw1
+sqlplus /nolog
+connect / as sysdba
+archive log list
+exit
+

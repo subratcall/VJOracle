@@ -1,0 +1,104 @@
+COLUMN sid FORMAT 999
+COLUMN serial# FORMAT 9999999
+COLUMN machine FORMAT A30
+COLUMN progress_pct FORMAT 99999999.00
+COLUMN elapsed FORMAT A10
+COLUMN remaining FORMAT A10
+
+SELECT s.sid,
+       s.serial#,
+       s.machine,
+       ROUND(sl.elapsed_seconds/60) || ':' || MOD(sl.elapsed_seconds,60) elapsed,
+       ROUND(sl.time_remaining/60) || ':' || MOD(sl.time_remaining,60) remaining,
+       ROUND(sl.sofar/sl.totalwork*100, 2) progress_pct,
+       to_char(LOGON_TIME,'MM-DD-YYYY HH:MI:SS') logon_time
+FROM   v$session s,
+       v$session_longops sl
+WHERE  s.sid     = sl.sid
+AND    s.serial# = sl.serial#;
+---------------------------------------------------------
+--list incomplete long running operations 
+SELECT * FROM v$session_longops WHERE sofar < totalwork;
+
+--SQL statement from the library cache for long running operations
+SELECT l.sid, l.sofar, l.totalwork, l.start_time, l.last_update_time, s.sql_text
+FROM   v$session_longops l
+       LEFT OUTER JOIN v$sql s ON s.hash_value = l.sql_hash_value
+AND    s.address = l.sql_address
+AND    s.child_number = 0
+/
+
+--Aggregate total amount of time spent on SQL statements.
+SELECT  l.sql_hash_value
+,     SUM(l.last_update_time-l.start_time)*86400 secs
+,     COUNT(*) execs
+FROM  v$session_longops l
+GROUP BY l.sql_hash_value
+ORDER BY secs
+/
+
+---long ops work
+COLUMN percent FORMAT 999.99 
+SELECT sid, to_char(start_time,'hh24:mi:ss') stime, 
+message,( sofar/totalwork)* 100 percent 
+FROM v$session_longops
+WHERE sofar/totalwork < 1
+/
+
+
+--------------
+--Get sql statements from statspack, if its not there in Library Cache
+---Begin-----------
+CREATE OR REPLACE FUNCTION perfstat.get_sqltext(p_hash_value NUMBER)
+RETURN VARCHAR2 IS
+ l_sql_text VARCHAR2(32767) := '';
+ l_sql_left NUMBER := 4000;
+BEGIN
+ FOR i IN(SELECT * FROM perfstat.stats$sqltext 
+          WHERE  hash_value = p_hash_value ORDER BY piece
+ ) LOOP
+  IF l_sql_left > 64 THEN
+   l_sql_text := l_sql_text || i.sql_text;
+  ELSIF l_sql_left > 0 THEN
+   l_sql_text := l_sql_text || SUBSTR(i.sql_text,1,l_sql_left);
+  END IF;
+ l_sql_left := l_sql_left - LENGTH(i.sql_text);
+END LOOP;
+RETURN l_sql_text;
+END get_sqltext;
+/
+show errors
+GRANT EXECUTE ON perfstat.get_sqltext TO PUBLIC;
+
+---gets the SQL statement from library cache, and if it isn't there it looks it up from the statspack data.
+spool longops
+SELECT l.*, NVL(s.sql_text
+     , perfstat.get_sqltext(l.sql_hash_value)) sql_text
+FROM (
+  SELECT l.target, l.operation, l.sql_hash_value
+       , SUM(secs) secs, SUM(execs) execs
+  FROM (
+    SELECT l.sid, l.serial#, l.sql_address, l.sql_hash_value
+    , l.target, l.operation
+    , MAX(l.last_update_time-l.start_time)*86400 secs
+    , COUNT(*) execs
+    , SUM(totalwork) totalwork
+    FROM (
+      SELECT l.*
+      , SUBSTR(l.message,1,instr(l.message,':',1,1)-1) operation 
+      FROM   v$session_longops l) l
+    GROUP BY l.sid, l.serial#, l.sql_address
+           , l.sql_hash_value, l.target, l.operation
+    ) l
+  GROUP BY l.target, l.operation, l.sql_hash_value
+  ) l
+  LEFT OUTER JOIN v$sql s ON s.hash_value = l.sql_hash_value
+--AND s.address = l.sql_address
+AND  s.child_number = 0
+ORDER BY secs desc
+/
+spool off
+
+---End-----------
+
+

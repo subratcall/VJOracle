@@ -1,0 +1,195 @@
+===Single compressed File import
+
+#!/bin/ksh
+export NLS_LANG=AMERICAN_AMERICA.UTF8
+. ~/.profile > /dev/null
+
+export FILE1=/export/exp/temp/full_prdmdc1_1_300710_2300.dmp
+export CMP_FILE1=/export/exp/temp/full_prdmdc1_1_300710_2300.dmp.Z
+/bin/mknod ${FILE1} p
+ uncompress < ${CMP_FILE1} > ${FILE1} & > /dev/null
+imp   file=$FILE1 tables=fdcust fromuser=ics touser=ics commit=y ignore=y log=imp_prdmdc1_into_devmdc1.log
+rm -f ${FILE1}
+rm -f ${TMP_FILE1_MAIL}
+
+====================================================================================================================
+===Multple compressed File import
+set -x
+#!/bin/ksh
+. ~/.profile > /dev/null
+. /home/oracle/.ora_devdw1
+export FILE1=/ora_db/devdw1/exp/nonclickstream_insight01_export_1_280112_1300.dmp
+export FILE2=/ora_db/devdw1/exp/nonclickstream_insight01_export_2_280112_1300.dmp
+export FILE3=/ora_db/devdw1/exp/nonclickstream_insight01_export_3_280112_1300.dmp
+export FILE4=/ora_db/devdw1/exp/nonclickstream_insight01_export_4_280112_1300.dmp
+export FILE5=/ora_db/devdw1/exp/nonclickstream_insight01_export_5_280112_1300.dmp
+export FILE6=/ora_db/devdw1/exp/nonclickstream_insight01_export_6_280112_1300.dmp
+export FILE7=/ora_db/devdw1/exp/nonclickstream_insight01_export_7_280112_1300.dmp
+export FILE8=/ora_db/devdw1/exp/nonclickstream_insight01_export_8_280112_1300.dmp
+export FILE9=/ora_db/devdw1/exp/nonclickstream_insight01_export_9_280112_1300.dmp
+export FILE10=/ora_db/devdw1/exp/nonclickstream_insight01_export_10_280112_1300.dmp
+export FILE11=/ora_db/devdw1/exp/nonclickstream_insight01_export_11_280112_1300.dmp
+export FILE12=/ora_db/devdw1/exp/nonclickstream_insight01_export_12_280112_1300.dmp
+export FILE13=/ora_db/devdw1/exp/nonclickstream_insight01_export_13_280112_1300.dmp
+export FILE14=/ora_db/devdw1/exp/nonclickstream_insight01_export_14_280112_1300.dmp
+export FILE15=/ora_db/devdw1/exp/nonclickstream_insight01_export_15_280112_1300.dmp
+export FILE16=/ora_db/devdw1/exp/nonclickstream_insight01_export_16_280112_1300.dmp
+export FILE17=/ora_db/devdw1/exp/nonclickstream_insight01_export_17_280112_1300.dmp
+export FILE18=/ora_db/devdw1/exp/nonclickstream_insight01_export_18_280112_1300.dmp
+export FILE19=/ora_db/devdw1/exp/nonclickstream_insight01_export_19_280112_1300.dmp
+export FILE20=/ora_db/devdw1/exp/nonclickstream_insight01_export_20_280112_1300.dmp
+export FILE21=/ora_db/devdw1/exp/nonclickstream_insight01_export_21_280112_1300.dmp
+export FILE22=/ora_db/devdw1/exp/nonclickstream_insight01_export_22_280112_1300.dmp
+export FILE23=/ora_db/devdw1/exp/nonclickstream_insight01_export_23_280112_1300.dmp
+export FILE24=/ora_db/devdw1/exp/nonclickstream_insight01_export_24_280112_1300.dmp
+export FILE25=/ora_db/devdw1/exp/nonclickstream_insight01_export_25_280112_1300.dmp
+export FILE26=/ora_db/devdw1/exp/nonclickstream_insight01_export_26_280112_1300.dmp
+export FILE27=/ora_db/devdw1/exp/nonclickstream_insight01_export_27_280112_1300.dmp
+export FILE28=/ora_db/devdw1/exp/nonclickstream_insight01_export_28_280112_1300.dmp
+export FILE29=/ora_db/devdw1/exp/nonclickstream_insight01_export_29_280112_1300.dmp
+export FILE30=/ora_db/devdw1/exp/nonclickstream_insight01_export_30_280112_1300.dmp
+export FILE31=/ora_db/devdw1/exp/nonclickstream_insight01_export_31_280112_1300.dmp
+export FILE32=/ora_db/devdw1/exp/nonclickstream_insight01_export_32_280112_1300.dmp
+export FILE33=/ora_db/devdw1/exp/nonclickstream_insight01_export_33_280112_1300.dmp
+
+
+export CMP_FILE1=/ora_db/devdw1/exp/nonclickstream_insight01_export_1_280112_1300.dmp.Z
+export CMP_FILE2=/ora_db/devdw1/exp/nonclickstream_insight01_export_2_280112_1300.dmp.Z
+export CMP_FILE3=/ora_db/devdw1/exp/nonclickstream_insight01_export_3_280112_1300.dmp.Z
+export CMP_FILE4=/ora_db/devdw1/exp/nonclickstream_insight01_export_4_280112_1300.dmp.Z
+export CMP_FILE5=/ora_db/devdw1/exp/nonclickstream_insight01_export_5_280112_1300.dmp.Z
+export CMP_FILE6=/ora_db/devdw1/exp/nonclickstream_insight01_export_6_280112_1300.dmp.Z
+export CMP_FILE7=/ora_db/devdw1/exp/nonclickstream_insight01_export_7_280112_1300.dmp.Z
+export CMP_FILE8=/ora_db/devdw1/exp/nonclickstream_insight01_export_8_280112_1300.dmp.Z
+export CMP_FILE9=/ora_db/devdw1/exp/nonclickstream_insight01_export_9_280112_1300.dmp.Z
+export CMP_FILE10=/ora_db/devdw1/exp/nonclickstream_insight01_export_10_280112_1300.dmp.Z
+export CMP_FILE11=/ora_db/devdw1/exp/nonclickstream_insight01_export_11_280112_1300.dmp.Z
+export CMP_FILE12=/ora_db/devdw1/exp/nonclickstream_insight01_export_12_280112_1300.dmp.Z
+export CMP_FILE13=/ora_db/devdw1/exp/nonclickstream_insight01_export_13_280112_1300.dmp.Z
+export CMP_FILE14=/ora_db/devdw1/exp/nonclickstream_insight01_export_14_280112_1300.dmp.Z
+export CMP_FILE15=/ora_db/devdw1/exp/nonclickstream_insight01_export_15_280112_1300.dmp.Z
+export CMP_FILE16=/ora_db/devdw1/exp/nonclickstream_insight01_export_16_280112_1300.dmp.Z
+export CMP_FILE17=/ora_db/devdw1/exp/nonclickstream_insight01_export_17_280112_1300.dmp.Z
+export CMP_FILE18=/ora_db/devdw1/exp/nonclickstream_insight01_export_18_280112_1300.dmp.Z
+export CMP_FILE19=/ora_db/devdw1/exp/nonclickstream_insight01_export_19_280112_1300.dmp.Z
+export CMP_FILE20=/ora_db/devdw1/exp/nonclickstream_insight01_export_20_280112_1300.dmp.Z
+export CMP_FILE21=/ora_db/devdw1/exp/nonclickstream_insight01_export_21_280112_1300.dmp.Z
+export CMP_FILE22=/ora_db/devdw1/exp/nonclickstream_insight01_export_22_280112_1300.dmp.Z
+export CMP_FILE23=/ora_db/devdw1/exp/nonclickstream_insight01_export_23_280112_1300.dmp.Z
+export CMP_FILE24=/ora_db/devdw1/exp/nonclickstream_insight01_export_24_280112_1300.dmp.Z
+export CMP_FILE25=/ora_db/devdw1/exp/nonclickstream_insight01_export_25_280112_1300.dmp.Z
+export CMP_FILE26=/ora_db/devdw1/exp/nonclickstream_insight01_export_26_280112_1300.dmp.Z
+export CMP_FILE27=/ora_db/devdw1/exp/nonclickstream_insight01_export_27_280112_1300.dmp.Z
+export CMP_FILE28=/ora_db/devdw1/exp/nonclickstream_insight01_export_28_280112_1300.dmp.Z
+export CMP_FILE29=/ora_db/devdw1/exp/nonclickstream_insight01_export_29_280112_1300.dmp.Z
+export CMP_FILE30=/ora_db/devdw1/exp/nonclickstream_insight01_export_30_280112_1300.dmp.Z
+export CMP_FILE31=/ora_db/devdw1/exp/nonclickstream_insight01_export_31_280112_1300.dmp.Z
+export CMP_FILE32=/ora_db/devdw1/exp/nonclickstream_insight01_export_32_280112_1300.dmp.Z
+export CMP_FILE33=/ora_db/devdw1/exp/nonclickstream_insight01_export_33_280112_1300.dmp.Z
+
+
+/usr/sbin/mknod ${FILE1} p
+/usr/sbin/mknod ${FILE2} p
+/usr/sbin/mknod ${FILE3} p
+/usr/sbin/mknod ${FILE4} p
+/usr/sbin/mknod ${FILE5} p
+/usr/sbin/mknod ${FILE6} p
+/usr/sbin/mknod ${FILE7} p
+/usr/sbin/mknod ${FILE8} p
+/usr/sbin/mknod ${FILE9} p
+/usr/sbin/mknod ${FILE10} p
+/usr/sbin/mknod ${FILE11} p
+/usr/sbin/mknod ${FILE12} p
+/usr/sbin/mknod ${FILE13} p
+/usr/sbin/mknod ${FILE14} p
+/usr/sbin/mknod ${FILE15} p
+/usr/sbin/mknod ${FILE16} p
+/usr/sbin/mknod ${FILE17} p
+/usr/sbin/mknod ${FILE18} p
+/usr/sbin/mknod ${FILE19} p
+/usr/sbin/mknod ${FILE20} p
+/usr/sbin/mknod ${FILE21} p
+/usr/sbin/mknod ${FILE22} p
+/usr/sbin/mknod ${FILE23} p
+/usr/sbin/mknod ${FILE24} p
+/usr/sbin/mknod ${FILE25} p
+/usr/sbin/mknod ${FILE26} p
+/usr/sbin/mknod ${FILE27} p
+/usr/sbin/mknod ${FILE28} p
+/usr/sbin/mknod ${FILE29} p
+/usr/sbin/mknod ${FILE30} p
+/usr/sbin/mknod ${FILE31} p
+/usr/sbin/mknod ${FILE32} p
+/usr/sbin/mknod ${FILE33} p
+        uncompress < ${CMP_FILE1} > ${FILE1} & > /dev/null
+        uncompress < ${CMP_FILE2} > ${FILE2} & > /dev/null
+        uncompress < ${CMP_FILE3} > ${FILE3} & > /dev/null
+        uncompress < ${CMP_FILE4} > ${FILE4} & > /dev/null
+        uncompress < ${CMP_FILE5} > ${FILE5} & > /dev/null
+        uncompress < ${CMP_FILE6} > ${FILE6} & > /dev/null
+        uncompress < ${CMP_FILE7} > ${FILE7} & > /dev/null
+        uncompress < ${CMP_FILE8} > ${FILE8} & > /dev/null
+        uncompress < ${CMP_FILE9} > ${FILE9} & > /dev/null
+        uncompress < ${CMP_FILE10} > ${FILE10} & > /dev/null
+        uncompress < ${CMP_FILE11} > ${FILE11} & > /dev/null
+        uncompress < ${CMP_FILE12} > ${FILE12} & > /dev/null
+        uncompress < ${CMP_FILE13} > ${FILE13} & > /dev/null
+        uncompress < ${CMP_FILE14} > ${FILE14} & > /dev/null
+        uncompress < ${CMP_FILE15} > ${FILE15} & > /dev/null
+        uncompress < ${CMP_FILE16} > ${FILE16} & > /dev/null
+        uncompress < ${CMP_FILE17} > ${FILE17} & > /dev/null
+        uncompress < ${CMP_FILE18} > ${FILE18} & > /dev/null
+        uncompress < ${CMP_FILE19} > ${FILE19} & > /dev/null
+        uncompress < ${CMP_FILE20} > ${FILE20} & > /dev/null
+        uncompress < ${CMP_FILE21} > ${FILE21} & > /dev/null
+        uncompress < ${CMP_FILE22} > ${FILE22} & > /dev/null
+        uncompress < ${CMP_FILE23} > ${FILE23} & > /dev/null
+        uncompress < ${CMP_FILE24} > ${FILE24} & > /dev/null
+        uncompress < ${CMP_FILE25} > ${FILE15} & > /dev/null
+        uncompress < ${CMP_FILE26} > ${FILE16} & > /dev/null
+        uncompress < ${CMP_FILE27} > ${FILE17} & > /dev/null
+        uncompress < ${CMP_FILE28} > ${FILE18} & > /dev/null
+        uncompress < ${CMP_FILE29} > ${FILE19} & > /dev/null
+        uncompress < ${CMP_FILE30} > ${FILE20} & > /dev/null
+        uncompress < ${CMP_FILE31} > ${FILE21} & > /dev/null
+        uncompress < ${CMP_FILE32} > ${FILE22} & > /dev/null
+        uncompress < ${CMP_FILE33} > ${FILE23} & > /dev/null
+
+imp / filesize=2097152000 file=$FILE1 $FILE2 $FILE3 $FILE4 $FILE5 $FILE6 $FILE7 $FILE8 $FILE9 $FILE10 $FILE11 $FILE12 $FILE13 $FILE14 $FILE15 $FILE16 $FILE17 $FILE18 $FILE19 $FILE20 $FILE21 $FILE22 $FILE23 $FILE24 $FILE25 $FILE26 $FILE27 $FILE28 $FILE29 $FILE30 $FILE31 $FILE32 $FILE33 tables=INSIGHT01.CONSULTANT_DEMOGRAPHICS commit=y ignore=y log=imp_cdmo_into_devdw1.log
+
+        rm -f ${FILE1}
+        rm -f ${FILE2}
+        rm -f ${FILE3}
+        rm -f ${FILE4}
+        rm -f ${FILE5}
+        rm -f ${FILE6}
+        rm -f ${FILE7}
+        rm -f ${FILE8}
+        rm -f ${FILE9}
+        rm -f ${FILE10}
+        rm -f ${FILE11}
+        rm -f ${FILE12}
+        rm -f ${FILE13}
+        rm -f ${FILE14}
+        rm -f ${FILE15}
+        rm -f ${FILE16}
+        rm -f ${FILE17}
+        rm -f ${FILE18}
+        rm -f ${FILE19}
+        rm -f ${FILE20}
+        rm -f ${FILE21}
+        rm -f ${FILE22}
+        rm -f ${FILE23}
+        rm -f ${FILE24}
+        rm -f ${FILE25}
+        rm -f ${FILE26}
+        rm -f ${FILE27}
+        rm -f ${FILE28}
+        rm -f ${FILE29}
+        rm -f ${FILE30}
+        rm -f ${FILE31}
+        rm -f ${FILE32}
+        rm -f ${FILE33}
+
+        rm -f ${TMP_FILE1_MAIL}
+

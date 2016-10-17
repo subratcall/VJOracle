@@ -1,0 +1,210 @@
+CONN sys/password AS SYSDBA
+@$ORACLE_HOME/rdbms/admin/utlmail.sql
+@$ORACLE_HOME/rdbms/admin/prvtmail.plb
+
+GRANT CREATE PROCEDURE, DROP ANY PROCEDURE TO testuser;
+GRANT EXECUTE ON UTL_TCP TO testuser;
+GRANT EXECUTE ON UTL_SMTP TO testuser;
+GRANT EXECUTE ON UTL_MAIL TO testuser;
+GRANT EXECUTE ON DBMS_NETWORK_ACL_ADMIN TO testuser;
+
+Before the package can be used, the SMTP gateway must be specified by setting the smtp_out_server parameter.  
+The parameter is dynamic, but the instance must be restarted before an email can be sent.
+
+CONN sys/password AS SYSDBA
+alter session set smtp_out_server='vcorpmsg01.mkcorp.com';
+
+SHUTDOWN IMMEDIATE
+STARTUP
+
+
+
+With the configuration complete, it is now possible to send an email using the send procedure.
+
+BEGIN
+  UTL_MAIL.send(sender     => 'vijay.unniparambath@mkcorp.com',
+                recipients => 'OracleDBAEmail@mkcorp.com',
+                subject    => 'Test UTL_MAIL.SEND Procedure',
+                message    => 'If you are reading this it worked!');
+END;
+/
+
+
+
+
+CREATE OR REPLACE PROCEDURE send_email AS
+--DECLARE
+   CRLF        CHAR(2) := CHR(10) || CHR(13);
+BEGIN
+   UTL_MAIL.SEND(
+        sender => 'vijay.unniparambath@mkcorp.com'
+       ,recipients => 'vijay.unniparambath@mkcorp.com'
+       ,cc => NULL
+       ,bcc =>  NULL
+       ,subject => 'Test Email'
+       ,message => 'Test line1' || CRLF || CRLF
+       || 'Test line2'
+       ,mime_type => 'text/plain; charset=us-ascii'
+       ,priority => 1
+   );
+
+
+   EXCEPTION
+   WHEN OTHERS THEN
+    --  dbms_output.put_line('Fehler');
+     raise_application_error(-20001,'The following error has occured: ' || sqlerrm);
+   END;
+   /
+SHOW ERRORS
+
+
+exec send_email;
+
+CREATE TABLE S_RECIPIENTS
+(
+  RECIPIENT   VARCHAR2(100)
+)
+TABLESPACE USERS
+PCTUSED    40
+PCTFREE    10
+INITRANS   1
+MAXTRANS   255
+STORAGE    (
+            INITIAL          64K
+            NEXT             64K
+            MINEXTENTS       1
+            MAXEXTENTS       2147483645
+            PCTINCREASE      0
+            FREELISTS        1
+            FREELIST GROUPS  1
+            BUFFER_POOL      DEFAULT
+           )
+LOGGING 
+NOCACHE;
+
+INSERT INTO S_RECIPIENTS VALUES ('vijay.unniparambath@mkcorp.com');
+INSERT INTO S_RECIPIENTS VALUES ('menonvp@gmail.com');
+COMMIT;
+
+1. Create the procedure 
+
+CREATE OR REPLACE PROCEDURE Check_Tablespaces (VAR_PER_FREE_SPACE NUMBER)
+IS
+
+   CURSOR CUR_RECIPIENTS IS SELECT * FROM HELPDESK.S_RECIPIENTS;
+
+   CURSOR TABLESPACE_CURSOR
+   IS
+      SELECT NVL(b.tablespace_name,
+             NVL(a.tablespace_name,'UNKOWN')) tablespace_name,
+       ROUND(Mbytes_alloc) MB_Alloc,
+     ROUND(NVL(Mbytes_free,0)) MB_Free,
+       ROUND(Mbytes_alloc-NVL(Mbytes_free,0)) MB_Used,
+     ROUND(((NVL(Mbytes_free,0))/Mbytes_alloc)*100) pct_free,
+       ROUND(((Mbytes_alloc-NVL(Mbytes_free,0))/Mbytes_alloc)*100) pct_used,
+       DECODE(Mbytes_max, 0, 'NO', 'AUTO') EXTENSIBLE
+FROM ( SELECT SUM(bytes)/(1024*1024) Mbytes_free,
+              MAX(bytes)/(1024*1024) largest,
+              tablespace_name
+       FROM  sys.dba_free_space
+       GROUP BY tablespace_name ) a,
+     ( SELECT SUM(bytes)/(1024*1024) Mbytes_alloc,
+              SUM(maxbytes)/(1024*1024) Mbytes_max,
+              tablespace_name
+       FROM sys.dba_data_files
+       GROUP BY tablespace_name) b
+WHERE a.tablespace_name (+) = b.tablespace_name AND Mbytes_max = 0
+ORDER BY pct_free ASC;
+
+V_DATABASE V$PARAMETER.VALUE%TYPE;
+crlf VARCHAR2(2):= CHR( 13 ) || CHR( 10 );
+
+BEGIN
+SELECT VALUE INTO V_DATABASE FROM v$parameter WHERE NAME = 'db_name';
+
+   FOR c1 IN TABLESPACE_CURSOR
+   LOOP
+   IF c1.PCT_FREE <= VAR_PER_FREE_SPACE THEN
+   FOR c2 IN cur_recipients LOOP
+       BEGIN
+            Send_Mail('vijay.unniparambath@mkcorp.com', c2.recipient,
+                      'Subject: ' || 'DB Server:  ' || V_DATABASE || '  ' || 'Tablespace: ' || c1.TABLESPACE_NAME || ' (' || c1.pct_free || '%) free space' || crlf,
+                      'DB Server:  ' || V_DATABASE || '  ' || crlf ||
+                      'Tablespace: ' || c1.TABLESPACE_NAME || crlf ||
+                      'MB Allocated:' || c1.MB_ALLOC || crlf ||
+                      'MB Free:' || c1.MB_FREE || crlf ||
+                      'MB Used:' || c1.MB_USED || crlf ||
+                      'PCT Free:' || c1.PCT_FREE ||'%' || crlf ||
+                      'PCT Used:' || c1.PCT_USED ||'%' || crlf);
+		    END;
+		END LOOP;
+      END IF;
+      END LOOP;
+
+EXCEPTION
+   WHEN OTHERS
+   THEN
+NULL;
+END Check_Tablespaces;
+/
+
+2. Create the job, for example the following job checks every 30 minutes and sends email alerts if a tablespace has less or equal to 2% free space.
+
+DECLARE
+  X NUMBER;
+BEGIN
+  SYS.DBMS_JOB.SUBMIT
+    ( job       => X 
+     ,what      => 'SYS.Check_Tablespaces
+  (2);'
+     ,next_date => TO_DATE('20/02/2008 00:00:00','dd/mm/yyyy hh24:mi:ss')
+     ,INTERVAL  => 'SYSDATE+30/1440 '
+     ,no_parse  => TRUE
+    );
+  SYS.DBMS_OUTPUT.PUT_LINE('Job Number is: ' || TO_CHAR(x));
+END;
+/
+
+COMMIT;
+
+
+
+
+
+As with the utl_smtp example, the code related to the job needs to be placed into a database procedure which captures errors using an exception handler and sends the appropriate email.  The following procedure is the Oracle10g equivalent of the one used in the utl_smtp example.
+
+* automated_email_alert_10g.sql
+
+-- *************************************************
+-- Copyright © 2005 by Rampant TechPress
+-- This script is free for non-commercial purposes
+-- with no warranties.  Use at your own risk.
+--
+-- To license this script for a commercial purpose,
+-- contact info@rampant.cc
+-- *************************************************
+
+CREATE OR REPLACE PROCEDURE automated_email_alert_10g AS
+  l_mail_host  VARCHAR2(50) := 'smtp.mycompany.com';
+  l_from       VARCHAR2(50) := 'jobs@mycompany.com';
+  l_to         VARCHAR2(50) := 'tim@mycompany.com';
+BEGIN
+  DBMS_STATS.gather_database_stats(cascade => TRUE,
+                                   options => 'GATHER AUTO');
+
+  UTL_MAIL.send(sender     => l_from,
+                recipients => l_to,
+                subject    => 'AUTOMATED_EMAIL_ALERT_10G (MYSID): Success',
+                message    => 'AUTOMATED_EMAIL_ALERT_10G (MYSID) completed
+successfully!');
+EXCEPTION
+  WHEN OTHERS THEN
+    UTL_MAIL.send(sender     => l_from,
+                  recipients => l_to,
+                  subject    => 'AUTOMATED_EMAIL_ALERT_10G (MYSID): Error',
+                  message    => 'AUTOMATED_EMAIL_ALERT_10G (MYSID) failed with the
+following error:' || SQLERRM);
+END automated_email_alert_10g;
+/
+SHOW ERRORS
+

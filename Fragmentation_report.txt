@@ -1,0 +1,69 @@
+select table_name, num_rows, round(s.blocks*8219/1024, 2) "HWM_KB", round(num_rows*(avg_row_len+5)/1024, 2) "Actual_KB",
+round(((round(s.blocks*8219/1024, 2) - round(num_rows*(avg_row_len+5)/1024, 2))/round(s.blocks*8219/1024, 2))*100 ,2) "Frag_%",
+hit.c4 "Num_OF_ACCESS"
+from dba_tables t, dba_segments s ,(select p.object_name c1, p.operation c2, count(1) c4
+                                    from dba_hist_sql_plan p, dba_hist_sqlstat s
+                                     where p.object_owner = 'SAPPHIRE'
+                                      and  p.operation like '%TABLE%'
+                                      and  p.sql_id = s.sql_id
+                                      group by p.object_name, p.operation
+                                      having count(1)>10) hit
+where t.owner='SAPPHIRE'and t.table_name=s.segment_name
+and t.table_name = hit.c1 
+and t.table_name not in (select distinct(table_name) from dba_tab_columns
+where owner='SAPPHIRE' and DATA_TYPE in ('CLOB', 'BLOB'))
+order by 5 desc
+
+--------------
+
+select segment_owner,segment_name,ALLOCATED_SPACE/1024/1024 alloc_mb,
+USED_SPACE/1024/1024 used_mb,RECLAIMABLE_SPACE/1024/1024 rclm_mb
+,round(100*RECLAIMABLE_SPACE/ALLOCATED_SPACE,4)recl_pct ,CHAIN_ROWEXCESS,c1,c2,c3
+from table(dbms_space.asa_recommendations())
+--rclm_pct will be a command line parameter, Using 25% as the default
+where 100*RECLAIMABLE_SPACE/ALLOCATED_SPACE>10
+--segment_name like 'ROW%'
+order by recl_pct desc;
+
+
+
+select owner,table_name,round((blocks*8),2) "size (kb)" , 
+                            round((num_rows*avg_row_len/1024),2) "actual_data (kb)",
+                            (round((blocks*8),2) - round((num_rows*avg_row_len/1024),2)) "wasted_space (kb)"
+from dba_tables
+where (round((blocks*8),2) > round((num_rows*avg_row_len/1024),2))
+order by 4 desc;
+
+
+Methods to remove fragmentation on table:
+    1) alter table ... move + rebuild indexes
+    alter table tpcc.stock move;
+    select status,index_name from DBA_indexes where table_name = 'STOCK';
+    ALTER INDEX TPCC.STOCK_I1 REBUILD ONLINE NOLOGGING;
+    exec dbms_stats.gather_table_stats('TPCC','STOCK');
+    select table_name,round((num_rows*avg_row_len/1024),2)||'kb' "size" from dba_tables where table_name = 'STOCK';
+    select table_name,round((blocks*8),2)||'kb' "size" from dba_tables where table_name = 'STOCK';
+
+
+    2) create table as select ( CTAS)
+    create table tpcc.stock2 as select * from tpcc.stock;
+    select count(*) from tpcc.stock2;
+     COUNT(*)
+    ----------
+      25000000
+    truncate table tpcc.stock;
+    Save index creation script from original table
+    connect tpcc/tpcc@labdba3
+    drop table stock;
+    rename stock2 to stock;
+    --Create index using saved script
+    exec dbms_stats.gather_table_stats('TPCC','STOCK');
+      
+
+    3) export / truncate / import
+    Export table data
+    truncate table
+    import data from the export backup
+    analyze table
+
+

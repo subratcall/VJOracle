@@ -1,0 +1,42 @@
+[oracle@umdcbporc14 ~]$ /etc/init.d/oracleasm listdisks
+PRDGM1_D1
+PRDGM1_D10
+PRDGM1_D11
+PRDGM1_D2
+PRDGM1_D3
+PRDGM1_D4
+PRDGM1_D5
+PRDGM1_D6
+PRDGM1_D7
+PRDGM1_D8
+PRDGM1_D9
+
+
+/etc/init.d/oracleasm  querydisk -p PRDGM1_D11
+	Disk "PRDGM1_D11" is a valid ASM disk
+	/dev/sdbo1: LABEL="PRDGM1_D11" TYPE="oracleasm"
+	/dev/sdbq1: LABEL="PRDGM1_D11" TYPE="oracleasm"
+
+
+/etc/init.d/oracleasm querydisk -d PRDGM1_D11
+	Disk "PRDGM1_D11" is a valid ASM disk on device [68, 33]
+
+[oracle@umdcbporc14 ~]$ ls -l /dev |grep 68
+brw-r-----  1 root disk  68,     0 Jan  2 00:58 sdbm
+brw-r-----  1 root disk  68,    16 Feb  4 16:03 sdbn
+brw-r-----  1 root disk  68,    17 Feb 19 17:07 sdbn1
+brw-r-----  1 root disk  68,    32 Feb  4 16:03 sdbo
+brw-r-----  1 root disk  68,    33 Feb 19 17:07 sdbo1
+brw-r-----  1 root disk  68,    48 Feb  4 16:03 sdbp
+brw-r-----  1 root disk  68,    49 Feb  4 20:08 sdbp1
+brw-r-----  1 root disk  68,    64 Feb  4 16:03 sdbq
+brw-r-----  1 root disk  68,    65 Feb 19 17:07 sdbq1
+crw-------  1 root root  21,    68 Feb  4 16:03 sg68
+
+[oracle@umdcbporc14 ~]$  ls -l /dev |grep 68|grep 33
+brw-r-----  1 root disk  68,    33 Feb 19 17:07 sdbo1
+
+	
+[oracle@umdcbporc14 ~]$ lsscsi | grep 67
+[1:0:0:67]   disk    HITACHI  DF600F           0000  /dev/sdbo
+[2:0:0:67]   disk    HITACHI  DF600F           0000  /dev/sdbq

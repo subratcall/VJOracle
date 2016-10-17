@@ -1,0 +1,297 @@
+
+Status Check Clusterware and CRS respirces
+crsctl stat res -t        -- check status
+crs_stat -t -v       -- status check
+crsctl query crs activeversion
+crsctl check cluster -all
+crsctl status resource -t 
+crsctl check crs
+crsctl check <daemon>
+crsctl status resource -t -init 
+ #./crsctl config crs
+crsctl status resource ora.uadcbdrac76.vip 
+crs_stat -p ora.DEVMSAF.dg   -- resource info
+
+--displays node views from all nodes collected over the last fifteen minutes 
+$ oclumon dumpnodeview -allnodes -last "00:15:00" 
+--dumps node views from node1, node2, and node3 collected over the last twelve hours 
+$ oclumon dumpnodeview -n uddcbdrac130,uddcbdrac131 -last "12:00:00"
+--find master node in cluster
+ $ oclumon manage -get master
+Master = uddcbdrac130
+$ oclumon version
+Cluster Health Monitor (OS), Version 11.2.0.3.0 - Production Copyright 2011 Oracle. All rights reserved.
+
+------------------------------------------------------------------------------------------------------------------------
+Shutdown Procedure
+
+SHUTDOWN
+--as oracle
+set environment running 'crs1120' from home 
+crs1120
+cd /usr/oracle/product/grid_11203/bin
+srvctl stop database -d devmsaf1  -shutdown database if all instances needs to be taken offline
+-- srvctl stop instance -i devmsaf12 -d devmsaf1 -- shutdown single instance
+-- srvctl stop instance -i devcomex2 -d devcomex
+srvctl stop nodeapps -n uadcbdrac76 -f
+srvctl stop nodeapps -n uadcbdrac77 -f
+srvctl stop asm -n uadcbdrac76 -f
+srvctl stop asm -n uadcbdrac77 -f
+
+--  ./crsctl disable has  --disable automatic startup of the Oracle High Availability Services stack when the server boots up. 
+
+
+--as root
+cd /usr/oracle/product/grid_11203/bin
+# ./crsctl stop crs -f       -- run this on both nodes
+# ./crsctl stat res -t        -- check status
+#./crsctl stop cluster [-all | -n server_name [...]] [-f]  --stop the Oracle Clusterware stack on all servers in the cluster or specific servers. 
+
+------------------------------------------------------------------------------------------------------------------------
+
+STARTUP
+--as root
+# ./crsctl start crs         --- run this on both nodes
+# ./crsctl stat res -t        --  check status
+ 
+--as Oracle
+srvctl start nodeapps -n uadcbdrac76
+srvctl start nodeapps -n uadcbdrac77
+srvctl start scan_listener
+srvctl start listener
+srvctl start database -d devmsaf1
+srvctl start database -d devcomex
+-- srvctl start instance -i devmsaf12 -d devmsaf1
+-- srvctl start instance -i devcomex2 -d devcomex
+
+ 
+crs_stat -t -v       -- status check
+crsctl stat res -t   -- check status
+crsctl query crs activeversion
+Oracle Clusterware active version on the cluster is [11.2.0.3.0]
+
+Start CRS exclusively on one node
+# crsctl start crs -excl
+-------------------
+
+Cluster
+
+--displays node views from all nodes collected over the last fifteen minutes 
+$ oclumon dumpnodeview -allnodes -last "00:15:00" 
+
+--dumps node views from node1, node2, and node3 collected over the last twelve hours 
+$ oclumon dumpnodeview -n uddcbdrac130,uddcbdrac131 -last "12:00:00"
+
+--find master node in cluster
+ $ oclumon manage -get master
+Master = uddcbdrac130
+
+$ oclumon version
+Cluster Health Monitor (OS), Version 11.2.0.3.0 - Production Copyright 2011 Oracle. All rights reserved.
+------------------------------------------------------------------------------------------------------------------------
+OCR/VotingDisk
+ ocrcheck -config  -- Display configured ocr file locaitons
+ ocrcheck -local -config  --> show local OLR information
+
+# ocrconfig -add +data  ---> To add an OCR file to +data ASM DG
+ocrconfig -showbackup
+ocrconfig  -showbackup manual  --Show manual backup info
+ocrconfig -backuploc /ora_ext/exp/cluster/rac130  -- Add new backup location
+ocrconfig -manualbackup  --Run manual backup for OCR
+ocrconfig -local -showbackup manual   --Display manual backup info for Oracle Local Registry (OLR)
+
+$ crsctl query css votedisk
+##  STATE    File Universal Id                File Name Disk group
+--  -----    -----------------                --------- ---------
+ 1. ONLINE   7c2a5d0748424f8abf03b058234be7c0 (/dev/rdsk/c4t50002AC99DFE08B2d0s6) [LABCRS]
+ 2. ONLINE   99a90962539b4f72bfe7722e7f22a091 (/dev/rdsk/c4t50002AC99DFF08B2d0s6) [LABCRS]
+ 3. ONLINE   413b9bf717fc4ffbbfa47738cc411989 (/dev/rdsk/c4t50002AC99E0008B2d0s6) [LABCRS]
+Located 3 voting disk(s).
+
+
+
+----
+
+
+SHUTDOWN steps to avoid force (-f)   --TEST
+--as Oracle
+cd
+crs1120
+cd /usr/oracle/product/grid_11203/bin
+
+srvctl stop database -d labdw1
+srvctl stop database -d labpdw1
+--From CRS home
+srvctl stop listener
+srvctl stop vip -n uddcbdrac130
+srvctl stop vip -n uddcbdrac131
+srvctl stop scan_listener
+srvctl stop scan
+srvctl stop diskgroup -g LABDW1DG
+srvctl stop diskgroup -g LABPDW1DG
+srvctl stop diskgroup -g LABCRSRDG
+srvctl stop nodeapps -n uddcbdrac130
+srvctl stop nodeapps -n uddcbdrac131
+srvctl stop diskgroup -g LABCRS
+crsctl stop resource ora.registry.acfs
+--as root
+#crsctl stop cluster
+#crsctl stop crs
+---------------------------------
+
+--ASM
+ls /dev/oracleasm/disks/
+oracleasm querydisk ASMOCRVOT12 -v
+oracleasm listdisks
+oracleasm scandisks
+rpm -qa |grep oracleasm  ---ASMLib package info
+	oracleasm-2.6.18-308.el5-2.0.5-1.el5
+	   oracleasm-support-2.1.7-1.el5
+	   oracleasmlib-2.0.4-1.el5
+
+for i in `oracleasm listdisks`; do oracleasm querydisk $i; done
+Disk "ASM01" is a valid ASM disk
+Disk "ASM02" is a valid ASM disk
+Disk "ASM03" is a valid ASM disk
+Disk "ASM04" is a valid ASM disk
+Disk "ASM05" is a valid ASM disk
+Disk "ASM06" is a valid ASM disk
+Disk "ASM10" is a valid ASM disk
+Disk "ASM7" is a valid ASM disk
+Disk "ASM8" is a valid ASM disk
+Disk "ASM9" is a valid ASM disk
+Disk "ASMOCRVOT1" is a valid ASM disk
+Disk "ASMOCRVOT10" is a valid ASM disk
+Disk "ASMOCRVOT11" is a valid ASM disk
+Disk "ASMOCRVOT12" is a valid ASM disk
+Disk "ASMOCRVOT2" is a valid ASM disk
+Disk "ASMOCRVOT3" is a valid ASM disk
+Disk "ASMOCRVOT4" is a valid ASM disk
+Disk "ASMOCRVOT5" is a valid ASM disk
+Disk "ASMOCRVOT6" is a valid ASM disk
+Disk "ASMOCRVOT7" is a valid ASM disk
+Disk "ASMOCRVOT8" is a valid ASM disk
+Disk "ASMOCRVOT9" is a valid ASM disk
+
+/sbin/blkid | grep oracleasm        ---List physcial disk and label info from os level
+	/dev/mapper/ASM01p1: LABEL="ASM01" TYPE="oracleasm"
+	/dev/mapper/ASMOCRVOT1p1: LABEL="ASMOCRVOT1" TYPE="oracleasm"
+	/dev/mapper/ASM05p1: LABEL="ASM05" TYPE="oracleasm"
+	/dev/mapper/ASM06p1: LABEL="ASM06" TYPE="oracleasm"
+	/dev/mapper/ASMOCRVOT6p1: LABEL="ASMOCRVOT6" TYPE="oracleasm"
+	/dev/mapper/ASMOCRVOT4p1: LABEL="ASMOCRVOT4" TYPE="oracleasm"
+	/dev/mapper/ASM03p1: LABEL="ASM03" TYPE="oracleasm"
+	/dev/mapper/ASM02p1: LABEL="ASM02" TYPE="oracleasm"
+	/dev/mapper/ASMOCRVOT2p1: LABEL="ASMOCRVOT2" TYPE="oracleasm"
+	/dev/mapper/ASMOCRVOT5p1: LABEL="ASMOCRVOT5" TYPE="oracleasm"
+	/dev/mapper/ASMOCRVOT3p1: LABEL="ASMOCRVOT3" TYPE="oracleasm"
+
+
+
+oracleasm status   -- Check ASM status
+/etc/init.d/oracleasm listdisks  -- list ASM disks from system level
+oracleasm querydisk ASM01
+asmcmd lsdsk  -- lists used disks
+
+asmcmd lsdsk -k -G PRDPDW1_ARCDG 		-- Disk space consumption
+asmcmd lsdsk -p  -G PRDPDW1DG		 	-- Disk membership in DG
+ asmcmd lsdsk  --discovery -G PRDPDW1DG	 -- find disks
+asmcmd lsdsk -G ADCDEVCRS
+Path
+ORCL:ASMOCRVOT1
+ORCL:ASMOCRVOT2
+ORCL:ASMOCRVOT3
+ORCL:ASMOCRVOT4
+ORCL:ASMOCRVOT5
+
+# uname -a
+# rpm -qa | grep oracleasm
+# ls -al /dev/*
+# gpnptool get
+$ ls -al /dev/oracleasm/disks
+$ cat /proc/partitions
+$ cat /etc/sysconfig/*asm*
+$ ls -al /etc/sysconfig/*asm*
+$ $ASM_HOME/bin/kfod asm_diskstring='ORCL:*' disks=all
+$ $ASM_HOME/bin/kfod disks=all
+$ $ASM_HOME/bin/kfod asm_diskstring='/dev/oracleasm/disks/*' disks=all
+$ /usr/sbin/oracleasm-discover 'ORCL:*' 
+
+--To make dg to autostart during crs restart
+# ./crsctl modify resource "ora.ADCDEVCRS.dg" -attr "AUTO_START=always"
+
+select name||'|'||state from v$asm_diskgroup;
+
+select gv$asm_diskgroup.GROUP_NUMBER||'|'||gv$instance.INSTANCE_NAME||'|'||gv$asm_diskgroup.NAME||'|'||round(gv$asm_diskgroup.TOTAL_MB)||'|'||round(gv$asm_diskgroup.FREE_MB)||'|'||round(gv$asm_diskgroup.USABLE_FILE_MB)||'|'||nvl(gv$asm_diskgroup.TYPE, 'DBCA_NULL')||'|'||gv$asm_diskgroup.STATE||'|'||nvl(gv$asm_diskgroup.COMPATIBILITY, 'DBCA_NULL')||'|'||nvl(gv$asm_diskgroup.DATABASE_COMPATIBILITY, 'DBCA_NULL') from gv$instance,gv$asm_diskgroup where gv$instance.INST_ID=gv$asm_diskgroup.INST_ID order by NAME;
+
+select inst.INSTANCE_NAME||'|'||nvl(vol.mountpath, 'USMCA_NULL')||'|'||nvl(vol.volume_name, 'USMCA_NULL')||'|'||vol.volume_device||'|'||dg.name||'|'||round(nvl(vol.size_mb,0)) from gv$asm_volume vol, gv$asm_diskgroup dg, gv$instance inst where vol.usage='ACFS' and vol.volume_device not in (select vol_device from gv$asm_acfsvolumes) and vol.group_number=dg.group_number and inst.INST_ID=vol.INST_ID and inst.INST_ID=dg.INST_ID order by vol.mountpath;
+
+srvctl status diskgroup -g LABCRS  -a
+crs_stat -p ora.LABCRS.dg
+
+
+
+(uddcbdrac130) crs1120:/export/home/oracle $ srvctl status asm
+ASM is running on uddcbdrac131,uddcbdrac130
+
+
+Listeners
+(uddcbdrac130) crs1120:$  srvctl config scan
+SCAN name: labrac-scan.mkcorp.com, Network: 1/10.8.0.0/255.255.255.0/aggr1
+SCAN VIP name: scan1, IP: /labrac-scan.mkcorp.com/10.8.0.233
+SCAN VIP name: scan2, IP: /labrac-scan.mkcorp.com/10.8.0.232
+SCAN VIP name: scan3, IP: /labrac-scan.mkcorp.com/10.8.0.234
+(uddcbdrac130) crs1120: srvctl config scan_listener
+SCAN Listener LISTENER_SCAN1 exists. Port: TCP:3564
+SCAN Listener LISTENER_SCAN2 exists. Port: TCP:3564
+SCAN Listener LISTENER_SCAN3 exists. Port: TCP:3564
+
+
+(uddcbdrac131) labdw12:/export/home/oracle $ srvctl config listener
+Name: LISTENER
+Network: 1, Owner: oracle
+Home: <CRS home>
+End points: TCP:1521
+
+
+Network/NIC info
+(uddcbdrac130) crs1120:/usr/oracle/product/grid_11203/bin $ oifcfg getif
+aggr1  10.8.0.0  global  public
+aggr3  10.1.54.0  global  cluster_interconnect
+
+
+(uddcbdrac130) crs1120:/usr/oracle/product/grid_11203/bin $ oifcfg iflist -p -n
+aggr1  10.8.0.0  PUBLIC  255.255.255.0
+aggr2  10.1.224.0  PRIVATE  255.255.248.0
+aggr3  10.1.54.0  PRIVATE  255.255.255.0
+aggr3  169.254.0.0  PUBLIC  255.255.0.0
+
+
+--displays node views from all nodes collected over the last fifteen minutes 
+$ oclumon dumpnodeview -allnodes -last "00:15:00" 
+
+--dumps node views from node1, node2, and node3 collected over the last twelve hours 
+$ oclumon dumpnodeview -n uddcbdrac130,uddcbdrac131 -last "12:00:00"
+
+--find master node in cluster
+ $ oclumon manage -get master
+Master = uddcbdrac130
+
+$ oclumon version
+Cluster Health Monitor (OS), Version 11.2.0.3.0 - Production Copyright 2011 Oracle. All rights reserved.
+
+SQL> select name, state, type, total_mb, free_mb from v$asm_diskgroup;
+
+NAME                      STATE       TYPE     TOTAL_MB    FREE_MB
+------------------------- ----------- ------ ---------- ----------
+LABCRSRDG                 MOUNTED     EXTERN       1852       1757
+LABCRS                    MOUNTED     NORMAL       5556       4630
+LABDW1DG                  MOUNTED     EXTERN    2558550    2556662
+LABPDW1DG                 MOUNTED     EXTERN    2558550    2556661
+TEST                      MOUNTED     NORMAL    1023420    1023222
+
+
+
+http://docs.oracle.com/cd/E11882_01/rac.112/e16794/crsref.htm#CHDHBECE
+http://anuj-singh.blogspot.com/2012_03_25_archive.html
+OCR/Voting Disk: http://www.idevelopment.info/data/Oracle/DBA_tips/Oracle10gRAC/CLUSTER_65.shtml

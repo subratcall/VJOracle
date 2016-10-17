@@ -1,0 +1,10 @@
+connect / as sysdba
+COL % FORMAT 99.0
+SELECT name, free_mb, total_mb, free_mb/total_mb*100 "%" FROM v$asm_diskgroup;
+NAME                              FREE_MB   TOTAL_MB     %
+------------------------------ ---------- ---------- -----
+ADCPRDCRS                           14089      15345  91.8
+COMEX_ARC                          103190     103418  99.8
+COMEX_DATA                         586471     617451  95.0
+MSAF_ARC                           102621     103418  99.2
+MSAF_DATA                           42389     411634  10.3

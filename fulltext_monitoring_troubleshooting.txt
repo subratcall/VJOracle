@@ -1,0 +1,74 @@
+
+-- determine if Oracle Text component is being used in the database
+col idx_table_owner for a14
+col idx_owner for a12
+select idx_id, idx_owner, idx_name, idx_table_owner from ctxsys.ctx_indexes;
+
+--Oracle Text Product Info Center Diagnostics Master Note [ID 1087143.1]	
+--Manual installation, deinstallation and verification of Oracle Text 11gR2 [ID 970473.1]	
+ 	
+	
+		
+select * from dba_indexes where owner='AGILE' AND INDEX_TYPE ='DOMAIN';
+	 
+
+select * from ctxsys.dr$index_error order by err_timestamp desc
+SELECT pnd_index_name, pnd_rowid , TO_CHAR(pnd_timestamp, 'dd-mon-yyyyhh24:mi:ss') timestamp  FROM ctxsys.ctx_pending;
+select a.*, to_char(b.pnd_timestamp,'DD-MON-YYYY HH24:MI:SS') ts from agile.files a, ctxsys.ctx_pending b where a.rowid=b.pnd_rowid and b.pnd_index_name='FILES_CONTENT_IDX' order by b.pnd_timestamp desc;
+
+truncate table ctxsys.dr$index_error drop storage;
+
+--select * from agile.files
+--select count(*) from ctxsys.ctx_pending
+
+SQL> select * from ctxsys.ctx_index_errors where ERR_INDEX_NAME='T_IDX' ;
+
+ERR_INDEX_OWNER ERR_INDEX_NAME ERR_TIMES ERR_TEXTKEY        ERR_TEXT 
+--------------- -------------- --------- ------------------ --------------------------------------------------------------------------
+TEXT            T_IDX          08-JUN-10 AAASC6AAEAAAAPtAAA DRG-11207: user filter command exited with status 1
+                                                            DRG-11222: Third-party filter does not support this known document format.
+
+Cause
+The DRG-11222 error occur when the DB and listener were started without LD_LIBRARY_PATH set and user is connected through listener.
+LD_LIBRARY_PATH must be set since the underlying filtering technology used by Oracle Text was migrated to Oracle Outside in HTML Export in release 10.2.0.5 and 11.1.0.7.
+Solution
+To implement the solution, please execute the following steps:
+
+- update the listener.ora to include ENVS parameter
+
+Example:
+
+
+SID_LIST_LISTENER_TSTPLM1 =
+  (SID_LIST =
+    (SID_DESC =
+      (GLOBAL_DBNAME = tstplm1)
+      (ORACLE_HOME = /usr/oracle/pdm/product/11.2.0)
+      (ENVS="LD_LIBRARY_PATH=/usr/oracle/product/11.2.0_SE/ctx/lib:/usr/oracle/product/11.2.0_SE/lib")
+      (SID_NAME = tstplm1)
+    )
+  )
+
+
+
+Agile whitepaper steps:
+Here are the steps that are in the white paper.
+
+5. Using a command prompt window on Windows or a terminal window on UNIX, navigate to ORACLE_HOME/admin/agile9/create/agile directory
+
+    a. Launch SQL*Plus and connect to the database server as user ctxsys/ctxsys and run the following SQL script to count the number of CTX errors
+select count(*) from ctx_user_index_errors where err_index_name = 'FILES_CONTENT_IDX';
+
+    b. Stay connected as user ctxsys/ctxsys and run the following SQL script to purge any prior errors from the system and release the storage:
+truncate table ctxsys.dr$index_error drop storage;
+
+    c. Stay connected as user ctxsys/ctxsys and run the following SQL script to the create preferences:
+agile9_fts_prefs.sql
+
+    d. Using the same SQL*Plus session, connect to the database server as the schema owner (agile/tartan) and run the following SQL script:
+       agile9_fts.sql
+
+I then go into the application and run the FTS again and then can watch the progress with this SQL statement.
+
+select a.*, to_char(b.pnd_timestamp,'DD-MON-YYYY HH24:MI:SS') ts from files a, ctxsys.ctx_user_pending b where a.rowid=b.pnd_rowid and b.pnd_index_name='FILES_CONTENT_IDX' order by b.pnd_timestamp desc;
+

@@ -1,0 +1,135 @@
+SQL> create tablespace temp_test datafile '/tmp/temp_test01.dbf' size 10M;
+ 
+Tablespace created.
+ 
+SQL> conn temp_test/temp_test
+Connected.
+SQL> create table test_table (key number(1));
+ 
+Table created.
+ 
+SQL> insert into test_table values (7);
+ 
+1 row created.
+ 
+SQL> commit;
+ 
+Commit complete.
+ 
+SQL> select * from test_table;
+ 
+       KEY
+----------
+         7
+
+[oracle@localhost fd]$ rm -rf /tmp/temp_test01.dbf 
+
+
+[oracle@localhost fd]$ sqlplus / as sysdba
+ 
+SQL*Plus: Release 11.2.0.3.0 Production on Tue Apr 23 10:50:23 2013
+ 
+Copyright (c) 1982, 2011, Oracle.  All rights reserved.
+ 
+ 
+Connected to:
+Oracle Database 11g Enterprise Edition Release 11.2.0.3.0 - 64bit Production
+With the Partitioning option
+ 
+SQL> conn temp_test/temp_test
+Connected.
+SQL> select * from test_table;
+ 
+       KEY
+----------
+         7
+
+ 
+SQL> conn / as sysdba
+Connected.
+SQL> alter system flush buffer_cache;
+ 
+System altered.
+ 
+SQL> conn temp_test/temp_test
+Connected.
+SQL> select * from test_table;
+select * from test_table
+*
+ERROR at line 1:
+ORA-01116: error in opening database file 6
+ORA-01110: data file 6: '/tmp/temp_test01.dbf'
+ORA-27041: unable to open file
+Linux-x86_64 Error: 2: No such file or directory
+Additional information: 3
+
+
+First find a PID of a process we know would have a File Descriptor open for the file we have just removed. Database writer is a good candidate:
+
+[oracle@localhost tmp]$ ps -ef|grep dbw
+oracle    3281     1  0 02:19 ?        00:00:04 ora_dbw0_TEST
+
+[oracle@localhost fd]$ /usr/sbin/lsof -p 3281
+.
+.
+.
+oracle  3281 oracle  256u   REG  253,0   9748480 6514798 /u01/app/oracle/oradata/TEST/control01.ctl
+oracle  3281 oracle  257u   REG  253,0   9748480 6514799 /u01/app/oracle/fast_recovery_area/TEST/control02.ctl
+oracle  3281 oracle  258uW  REG  253,0 754982912 6514790 /u01/app/oracle/oradata/TEST/system01.dbf
+oracle  3281 oracle  259uW  REG  253,0 629153792 6514791 /u01/app/oracle/oradata/TEST/sysaux01.dbf
+oracle  3281 oracle  260uW  REG  253,0 120594432 6514792 /u01/app/oracle/oradata/TEST/undotbs01.dbf
+oracle  3281 oracle  261uW  REG  253,0   5251072 6514793 /u01/app/oracle/oradata/TEST/users01.dbf
+oracle  3281 oracle  262uW  REG  253,0 362422272 6515122 /u01/app/oracle/oradata/TEST/example01.dbf
+oracle  3281 oracle  263uW  REG  253,0  30416896 6514823 /u01/app/oracle/oradata/TEST/temp01.dbf
+oracle  3281 oracle  264uW  REG  253,0  10493952 5761580 /tmp/temp_test01.dbf (deleted)
+
+
+Missed out lots of /dev/shm entries in the above. We can see on the last line, the /tmp/temp_test01.dbf datafile and we see it’s marked as deleted. We can also see it has a file descriptor 264. You can also see this from the following directory:
+
+[oracle@localhost fd]$ ls -ltar /proc/3281/fd/
+total 0
+dr-xr-xr-x 7 oracle oinstall  0 Mar  6 13:38 ..
+dr-x------ 2 oracle oinstall  0 Mar  6 13:38 .
+lr-x------ 1 oracle oinstall 64 Apr 23 10:45 10 -> /dev/zero
+l-wx------ 1 oracle oinstall 64 Apr 23 10:45 1 -> /dev/null
+lr-x------ 1 oracle oinstall 64 Apr 23 10:45 0 -> /dev/null
+lrwx------ 1 oracle oinstall 64 Apr 23 10:48 264 -> /tmp/temp_test01.dbf (deleted)
+
+Where we have used the PID of the dbw process. Again we see the file is marked as deleted and again it’s FD 264. Now this is the idea Frits mentioned and we can start act
+ally recovering the data:
+
+[oracle@localhost]$  cd /proc/3281/fd
+[oracle@localhost fd]$ cat 264 > /tmp/test01.dbf
+
+From the /proc/3281/fd/ directory I ran a cat on the File Descriptor number and sent it to another filename. test01.dbf. Now you have recovered the data, you can switch the tablespace to use this datafile:
+
+SQL> alter database datafile '/tmp/temp_test01.dbf' offline;
+ 
+Database altered.
+ 
+SQL> alter database rename file '/tmp/temp_test01.dbf' to '/tmp/test01.dbf';
+ 
+Database altered.
+ 
+SQL> alter database datafile '/tmp/test01.dbf' online;
+alter database datafile '/tmp/test01.dbf' online
+*
+ERROR at line 1:
+ORA-01113: file 6 needs media recovery
+ORA-01110: data file 6: '/tmp/test01.dbf'
+ 
+ 
+SQL> recover datafile '/tmp/test01.dbf';
+Media recovery complete.
+SQL> alter database datafile '/tmp/test01.dbf' online;
+ 
+Database altered.
+ 
+SQL> select * from temp_test.test_table;
+ 
+       KEY
+----------
+         7
+
+This is such a cool trick. I still would consider a very last option, particularly in a production environment. 
+

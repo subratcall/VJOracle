@@ -1,0 +1,258 @@
+
+--General db performance                               
+select  METRIC_NAME,
+        VALUE
+from    SYS.V_$SYSMETRIC
+where   METRIC_NAME IN ('Database CPU Time Ratio',
+                        'Database Wait Time Ratio') AND
+        INTSIZE_CSEC = 
+        (select max(INTSIZE_CSEC) from SYS.V_$SYSMETRIC); 
+
+METRIC_NAME                         VALUE
+------------------------------ ----------
+Database Wait Time Ratio                6
+Database CPU Time Ratio                94 
+
+CPU Time Ratio - Percentage of total time used in performing user requests.
+Wait Time Ratio- Percentage of total time used in waiting for resources.
+
+--look over the last hour to see if the database has experienced any dips in overall performance by using this query:
+                               
+select  end_time,
+        value
+from    sys.v_$sysmetric_history
+where   metric_name = 'Database CPU Time Ratio'
+order by 1;
+
+END_TIME                  VALUE
+-------------------- ----------
+22-NOV-2004 10:00:38         98
+22-NOV-2004 10:01:39         96
+22-NOV-2004 10:02:37         99
+22-NOV-2004 10:03:38        100
+
+
+--View the minimum, maximum, and average values of overall database efficiency by querying the V$SYSMETRIC_SUMMARY 
+column METRIC_NAME format a35
+select  CASE METRIC_NAME
+            WHEN 'SQL Service Response Time' then 'SQL Service Response Time (secs)'
+            WHEN 'Response Time Per Txn' then 'Response Time Per Txn (secs)'
+            ELSE METRIC_NAME
+            END METRIC_NAME,
+                CASE METRIC_NAME
+            WHEN 'SQL Service Response Time' then ROUND((MINVAL / 100),2)
+            WHEN 'Response Time Per Txn' then ROUND((MINVAL / 100),2)
+            ELSE MINVAL
+            END MININUM,
+                CASE METRIC_NAME
+            WHEN 'SQL Service Response Time' then ROUND((MAXVAL / 100),2)
+            WHEN 'Response Time Per Txn' then ROUND((MAXVAL / 100),2)
+            ELSE MAXVAL
+            END MAXIMUM,
+                CASE METRIC_NAME
+            WHEN 'SQL Service Response Time' then ROUND((AVERAGE / 100),2)
+            WHEN 'Response Time Per Txn' then ROUND((AVERAGE / 100),2)
+            ELSE AVERAGE
+            END AVERAGE
+from    SYS.V_$SYSMETRIC_SUMMARY 
+where   METRIC_NAME in ('CPU Usage Per Sec',
+                      'CPU Usage Per Txn',
+                      'Database CPU Time Ratio',
+                      'Database Wait Time Ratio',
+                      'Executions Per Sec',
+                      'Executions Per Txn',
+                      'Response Time Per Txn',
+                      'SQL Service Response Time',
+                      'User Transaction Per Sec')
+ORDER BY 1
+
+METRIC_NAME                       MINIMUM    MAXIMUM    AVERAGE
+------------------------------ ---------- ---------- ----------
+CPU Usage Per Sec                       0          7          1
+CPU Usage Per Txn                       1         29          8
+Database CPU Time Ratio                61        100         94
+Database Wait Time Ratio                0         39          5
+Executions Per Sec                      2         60          8
+Executions Per Txn                     16        164         41
+Response Time Per Txn (secs)            0        .28        .08
+
+
+---what types of user activities are responsible for making the database work so hard
+column DB_STAT_NAME format a50
+select  case db_stat_name
+            when 'parse time elapsed' then 
+                'soft parse time'
+            else db_stat_name
+            end db_stat_name,
+        case db_stat_name
+            when 'sql execute elapsed time' then 
+                time_secs - plsql_time 
+            when 'parse time elapsed' then 
+                time_secs - hard_parse_time
+            else time_secs
+            end time_secs,
+        case db_stat_name
+            when 'sql execute elapsed time' then 
+                round(100 * (time_secs - plsql_time) / db_time,2)
+            when 'parse time elapsed' then 
+                round(100 * (time_secs - hard_parse_time) / db_time,2)  
+            else round(100 * time_secs / db_time,2)  
+            end pct_time
+from
+(select stat_name db_stat_name,
+        round((value / 1000000),3) time_secs
+    from sys.v_$sys_time_model
+    where stat_name not in('DB time','background elapsed time',
+                            'background cpu time','DB CPU')),
+(select round((value / 1000000),3) db_time 
+    from sys.v_$sys_time_model 
+    where stat_name = 'DB time'),
+(select round((value / 1000000),3) plsql_time 
+    from sys.v_$sys_time_model 
+    where stat_name = 'PL/SQL execution elapsed time'),
+(select round((value / 1000000),3) hard_parse_time 
+    from sys.v_$sys_time_model 
+    where stat_name = 'hard parse elapsed time')
+order by 2 desc;
+
+
+DB_STAT                          TIME_SECS       PCT_TIME
+-----------------------------    ---------       --------
+sql execute elapsed time         13263.707       45.84                                 
+PL/SQL execution elapsed time    13234.738       45.74                                 
+hard parse elapsed time           1943.687        6.72                                  
+soft parse time                    520.584         1.8
+
+
+--Global wait time
+column WAIT_CLASS format a20
+select  WAIT_CLASS,
+        TOTAL_WAITS,
+        round(100 * (TOTAL_WAITS / SUM_WAITS),2) PCT_WAITS,
+        ROUND((TIME_WAITED / 100),2) TIME_WAITED_SECS,
+        round(100 * (TIME_WAITED / SUM_TIME),2) PCT_TIME
+from
+(select WAIT_CLASS,
+        TOTAL_WAITS,
+        TIME_WAITED
+from    V$SYSTEM_WAIT_CLASS
+where   WAIT_CLASS != 'Idle'),
+(select  sum(TOTAL_WAITS) SUM_WAITS,
+        sum(TIME_WAITED) SUM_TIME
+from    V$SYSTEM_WAIT_CLASS
+where   WAIT_CLASS != 'Idle')
+order by 5 desc;
+
+WAIT_CLASS      TOTAL_WAITS  PCT_WAITS TIME_WAITED_SECS   PCT_TIME
+--------------- ----------- ---------- ---------------- ----------
+User I/O            2245204       7.48          4839.43      54.39
+System I/O          2438387       8.12          2486.21      27.94
+Application          920385       3.07           513.56       5.77
+Other                 39962        .13           422.36       4.75
+Commit               200872        .67           284.76        3.2
+Network            24133213      80.38           162.26       1.82
+Concurrency            6867        .02           102.63       1.15
+Configuration         39377        .13            86.21        .97
+
+--
+select  to_char(a.end_time,'DD-MON-YYYY HH:MI:SS') end_time,
+        b.wait_class,
+        round((a.time_waited / 100),2) time_waited 
+from    sys.v_$waitclassmetric_history a,
+        sys.v_$system_wait_class b
+where   a.wait_class# = b.wait_class# and
+        b.wait_class != 'Idle'
+order by 1,2;
+
+END_TIME                      WAIT_CLASS                                                       TIME_WAITED
+----------------------------- ---------------------------------------------------------------- -----------
+06-MAR-2012 05:19:28          Administrative                                                             0
+06-MAR-2012 05:19:28          Application                                                                0
+06-MAR-2012 05:19:28          Commit                                                                    30
+06-MAR-2012 05:19:28          Concurrency                                                             0.52
+06-MAR-2012 05:19:28          Configuration                                                          47.26
+06-MAR-2012 05:19:28          Network                                                                 0.03
+06-MAR-2012 05:19:28          Other                                                                  10.51
+06-MAR-2012 05:19:28          Scheduler                                                                  0
+06-MAR-2012 05:19:28          System I/O                                                            182.44
+06-MAR-2012 05:19:28          User I/O                                                               64.94
+
+WAIT_CLASS    EVENT_NAME                              
+----------    ------------------------------
+System I/O    db file parallel write                  
+              io done
+              kfk: async disk IO
+              ksfd: async disk IO
+              log file parallel write
+              log file sequential read
+              log file single write
+              recovery read
+ 
+User I/O      BFILE read     
+              buffer read retry
+              db file parallel read
+              db file scattered read
+              db file sequential read
+              db file single write
+
+--view current session wait activity using the new wait classes
+select  a.sid,
+        b.username,
+        a.wait_class,
+        a.total_waits,
+        round((a.time_waited / 100),2) time_waited_secs
+from    sys.v_$session_wait_class a,
+        sys.v_$session b
+where   b.sid = a.sid and
+        b.username is not null and
+        a.wait_class != 'Idle'
+order by 5 desc;
+
+    SID USERNAME                       WAIT_CLASS           TOTAL_WAITS TIME_WAITED_SECS
+---------- ------------------------------ -------------------- ----------- ----------------
+       317 THOMASP                        User I/O                     604            34.98
+       291 IWR                            User I/O                     372             7.04
+       342 SYSTEM                         User I/O                     273             4.51
+       253 THOMASP                        User I/O                      41             3.96
+       366 PSOFTDW                        User I/O                     305             2.34
+       185 DWCUBE                         User I/O                      22             1.99
+        45 DWCUBE                         User I/O                      21             1.96
+        68 SYSTEM                         User I/O                      53             1.88
+        98 SYSTEM                         User I/O                     100             1.64
+
+
+
+--look back in time to discover what sessions were logged on and consuming the most resources, you can use the following query. 
+select  sess_id,
+        username,
+        program,
+        wait_event,
+        sess_time,
+        round(100 * (sess_time / total_time),2) pct_time_waited
+from
+(select a.session_id sess_id,
+        decode(session_type,'background',session_type,c.username) username,
+        a.program program,
+        b.name wait_event,
+        sum(a.time_waited) sess_time
+from    sys.v_$active_session_history a,
+        sys.v_$event_name b,
+        sys.dba_users c
+where   a.event# = b.event# and
+        a.user_id = c.user_id and
+         sample_time > '06-MAR-2012 05:00:00 AM' and 
+        sample_time < '06-MAR-2012 06:30:00 AM' and
+         b.wait_class = 'User I/O'
+group by a.session_id,
+        decode(session_type,'background',session_type,c.username),
+        a.program,
+        b.name),
+(select sum(a.time_waited) total_time
+from    sys.v_$active_session_history a,
+        sys.v_$event_name b
+where   a.event# = b.event# and
+        sample_time > '06-MAR-2012 05:00:00 AM' and 
+        sample_time < '06-MAR-2012 06:30:00 AM' and
+        b.wait_class = 'User I/O')
+order by 6 desc;
+

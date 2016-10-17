@@ -1,0 +1,38 @@
+SELECT s.sid,
+s.server,
+lower(
+CASE
+WHEN s.server IN ('DEDICATED','SHARED') THEN
+i.instance_name || '_' ||
+nvl(pp.server_name, nvl(ss.name, 'ora')) || '_' ||
+p.spid || '.trc'
+ELSE NULL
+END
+) AS trace_file_name
+FROM v$instance i,
+v$session s,
+v$process p,
+v$px_process pp,
+v$shared_server ss
+WHERE s.paddr = p.addr
+AND s.sid = pp.sid (+)
+AND s.paddr = ss.paddr(+)
+AND s.type = 'USER'
+ORDER BY s.sid;
+---------------------------------------
+
+CREATE OR REPLACE TRIGGER SYS.TR_BPM_LOGON_trace
+  AFTER LOGON
+  ON DATABASE
+  ENABLE
+  declare
+  v_user varchar2(30):=user;
+  sql_stmt1 varchar2(256) :='alter session set sql_trace=true';
+  begin
+   if (v_user='BPM_ETL_EXTRACT') THEN
+execute immediate 'ALTER SESSION SET TRACEFILE_IDENTIFIER=''BPM_ETL''';
+execute immediate 'alter session set timed_statistics=true';
+execute immediate 'ALTER SESSION SET EVENTS ''10046 TRACE NAME CONTEXT FOREVER, LEVEL 12''';
+    end if;
+ end;
+ /

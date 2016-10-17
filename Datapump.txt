@@ -1,0 +1,44 @@
+
+create or replace directory dir_exp as '/ora_db/phdcdba1/exp';
+CREATE or REPLACE DIRECTORY dir_exp_log as '/ora_db/tsthyp1/exp.log';
+grant read,write on directory dir_exp to oracle;
+grant read,write on directory dir_exp_log to oracle;
+
+
+expdp / DIRECTORY=dir_exp dumpfile=full_vcstst3_%U.dmp LOGFILE=dir_exp_log:vcstst3_expdp.log 
+
+expdp / directory=dir_exp dumpfile=full_vcstst3_%U.dmp parallel=2 job_name=exp_vcstst3  COMPRESSION=ALL full=y logfile=test
+
+expdp CONTENT=METADATA_ONLY DIRECTORY=DIR_EXP DUMPFILE=ps_stg_aukd.dmp LOGFILE=ps_stg_aud.log SCHEMAS=PSOFDW,STAGING,AUDITING 
+
+
+
+select sid, serial#
+from v$session s, dba_datapump_sessions d
+where s.saddr = d.saddr;
+
+select sid, serial#, sofar, totalwork
+from v$session_longops
+where opname = 'CASES_EXPORT'
+and sofar != totalwork;
+
+
+set event="10298 trace name context forever, level 32" in init.ora to allow dp to write into nfs mount
+
+--Remove Orphan Tables
+SELECT owner_name, job_name, operation, job_mode, state, attached_sessions 
+FROM dba_datapump_jobs 
+WHERE job_name NOT LIKE 'BIN$%' ORDER BY 1,2; 
+
+select 'drop table oracle.'||job_name ||';' FROM dba_datapump_jobs WHERE job_name NOT LIKE 'BIN$%';
+
+----Data pump job monitoring:
+select NAME,STATUS, TIMEOUT, ERROR_NUMBER, ERROR_MSG from DBA_RESUMABLE;
+select OBJECT_NAME,OBJECT_TYPE,REASON,SUGGESTED_ACTIONfrom DBA_OUTSTANDING_ALERTS;
+select username,opname,target_desc,sofar,totalwork,message from V$SESSION_LONGOPS;
+
+SELECT * FROM DBA_DATAPUMP_SESSIONS;
+
+--Find data pump file info
+SET serveroutput on SIZE 1000000
+exec show_dumpfile_info(p_dir=> 'DUMP_DIR', p_file=> 'dump1.dmp');

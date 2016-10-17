@@ -1,0 +1,48 @@
+'f57jrd1mnra7u'
+
+
+variable stmt_task VARCHAR2(64);
+variable sts_task VARCHAR2(64);
+ 
+EXEC :sts_task := DBMS_SQLTUNE.CREATE_TUNING_TASK(sql_id => 'f57jrd1mnra7u',plan_hash_value => 1366411189);
+EXEC :sts_task := DBMS_SQLTUNE.CREATE_TUNING_TASK(sql_id => 'f57jrd1mnra7u',plan_hash_value => 1366411189,time_limit => 15, SCOPE => 'COMPREHENSIVE');
+
+EXEC DBMS_SQLTUNE.EXECUTE_TUNING_TASK(:sts_task);
+
+SELECT status FROM USER_ADVISOR_TASKS WHERE task_name = :sts_task;
+
+
+SET LONG 1000
+SET LONGCHUNKSIZE 1000
+SET LINESIZE 100
+SELECT DBMS_SQLTUNE.REPORT_TUNING_TASK( :sts_task) FROM DUAL;
+
+
+EXEC DBMS_SQLTUNE.accept_sql_profile(task name => :sts_task, name => 'my_sql_profile');
+
+-- Delete all statements in a sql tuning set.
+EXEC DBMS_SQLTUNE.DELETE_SQLSET(sqlset_name   => 'my_workload');
+
+
+
+RECOMMENDATION 1: SQL Tuning, 74% benefit (2229 seconds)
+      ACTION: Run SQL Tuning Advisor on the SQL statement with SQL_ID
+         "f57jrd1mnra7u".
+         RELEVANT OBJECT: SQL statement with SQL_ID f57jrd1mnra7u and
+         PLAN_HASH 1366411189
+         select PROD_GROSS_COMM  ,ROUND((PROD_GROSS_COMM*
+         FN_EXCH_RATE('GBP',PROD_EXCH_DATE)),2)  ,ROUND((PROD_GROSS_COMM*
+         FN_EXCH_RATE('CHF',PROD_EXCH_DATE)),2)  ,BASICS_TEAM_RETAIL
+         ,PROD_CCYY  ,SEQ_NUM  ,PROD_PERCENT_COMM  ,PROD_EXCH_DATE   from
+         IRIS.FDCUSPRD A where (PROD_CUSTOMER_NO=:b1 and PROD_CUST_SUFFIX=:b2)
+         order by PROD_GROSS_COMM desc
+      RATIONALE: SQL statement with SQL_ID "f57jrd1mnra7u" was executed 292220
+         times and had an average elapsed time of 0.0076 seconds.
+
+
+sELECT SQL_ID,sql_text,
+           executions
+    FROM   v$sql
+    WHERE  INSTR(sql_text, 'PROD_GROSS_COMM ') > 0
+    AND    INSTR(sql_text, 'sql_text') = 0
+    ORDER BY sql_text;

@@ -1,0 +1,66 @@
+--By Actions
+select nvl(ds.action, 'OTHER') "ACTION",
+       ds.parsing_schema_name,
+       trunc(avg(ds.sorts_delta)) sorts,
+       trunc(avg(ds.executions_delta)) executions,
+       trunc(avg(ds.disk_reads_delta)) disk_reads,
+       trunc(avg(ds.direct_writes_delta)) disk_writes,
+       trunc(avg(ds.buffer_gets_delta)) buffer_gets,
+       trunc(avg(ds.cpu_time_delta)) cpu_time,
+       trunc(avg(ds.elapsed_time_delta)) elapsed_time,
+       trunc(avg(ds.iowait_delta)) iowait
+  from dba_hist_sqlstat ds
+ inner join dba_hist_snapshot dhs
+    on dhs.snap_id = ds.snap_id
+--For DAY Uncomment this
+--where TO_NUMBER(TO_CHAR(dhs.begin_interval_time, 'HH24MI')) between 0801 and 1901
+--and TO_NUMBER(TO_CHAR(dhs.end_interval_time, 'HH24MI')) between 0801 and 1901
+--For NIGHT Uncomment this  
+--where TO_NUMBER(TO_CHAR(dhs.begin_interval_time, 'HH24MI')) not between 901 and 1801
+--and TO_NUMBER(TO_CHAR(dhs.end_interval_time, 'HH24MI')) not between 901 and 1801
+group by ds.action, ds.parsing_schema_name;
+
+--By MODULE
+select nvl(ds.module, 'OTHER') "MODULE",
+       ds.parsing_schema_name,
+       trunc(avg(ds.sorts_delta)) sorts,
+       trunc(avg(ds.executions_delta)) executions,
+       trunc(avg(ds.disk_reads_delta)) disk_reads,
+       trunc(avg(ds.direct_writes_delta)) disk_writes,
+       trunc(avg(ds.buffer_gets_delta)) buffer_gets,
+       trunc(avg(ds.cpu_time_delta)) cpu_time,
+       trunc(avg(ds.elapsed_time_delta)) elapsed_time,
+       trunc(avg(ds.iowait_delta)) iowait
+  from dba_hist_sqlstat ds
+ inner join dba_hist_snapshot dhs
+    on dhs.snap_id = ds.snap_id
+--For DAY Uncomment this
+--where TO_NUMBER(TO_CHAR(dhs.begin_interval_time, 'HH24MI')) between 0801 and 1901
+--and TO_NUMBER(TO_CHAR(dhs.end_interval_time, 'HH24MI')) between 0801 and 1901
+--For NIGHT Uncomment this 
+--where TO_NUMBER(TO_CHAR(dhs.begin_interval_time, 'HH24MI')) not between 901 and 1801
+--and TO_NUMBER(TO_CHAR(dhs.end_interval_time, 'HH24MI')) not between 901 and 1801
+ group by ds.module, ds.parsing_schema_name;
+ 
+ 
+--By Users
+select nvl(ds.parsing_schema_name, 'OTHER') "SCHEMA",
+       trunc(avg(ds.sorts_delta)) sorts,
+       trunc(avg(ds.executions_delta)) executions,
+       trunc(avg(ds.disk_reads_delta)) disk_reads,
+       trunc(avg(ds.direct_writes_delta)) disk_writes,
+       trunc(avg(ds.buffer_gets_delta)) buffer_gets,
+       trunc(avg(ds.cpu_time_delta)) cpu_time,
+       trunc(avg(ds.elapsed_time_delta)) elapsed_time,
+       trunc(avg(ds.iowait_delta)) iowait
+  from dba_hist_sqlstat ds
+ inner join dba_hist_snapshot dhs
+    on dhs.snap_id = ds.snap_id
+--For DAY Uncomment this
+--where TO_NUMBER(TO_CHAR(dhs.begin_interval_time, 'HH24MI')) between 0801 and 1901
+--and TO_NUMBER(TO_CHAR(dhs.end_interval_time, 'HH24MI')) between 0801 and 1901
+--For NIGHT Uncomment this  
+--where TO_NUMBER(TO_CHAR(dhs.begin_interval_time, 'HH24MI')) not between 901 and 1801
+--and TO_NUMBER(TO_CHAR(dhs.end_interval_time, 'HH24MI')) not between 901 and 1801
+ group by ds.parsing_schema_name;
+ 

@@ -1,0 +1,92 @@
+REM Purpose:
+REM     <SQLDIR_TXT>
+REM	This script lists top 10 sessions based
+REM	on the following values from v$sesstat:
+REM		- consistent gets
+REM		- db block gets
+REM		- physical reads
+REM		- db block changes
+
+
+set lines 132
+set trims on
+
+col sid_serial        format a12         heading "Sid,Serial"
+col USERNAME          format a8 trunc   heading "User"
+col MACHINE           format a10 trunc   heading "Machine"
+col OSUSER            format a10 trunc   heading "OS-User"
+col logon             format a15         heading "Login Time"
+col idle              format a8          heading "Idle"
+col status            format a1          heading "S|t|a|t|u|s"
+col lockwait          format a1          heading "L|o|c|k|w|a|i|t"
+col module            format a35 trunc   heading "Module"                
+                
+select top_ten.tot_value
+,      chr(39)||s.sid||','||s.serial#||chr(39) sid_serial
+,      s.username
+,      SUBSTR(s.status,1,1) status
+,      s.lockwait
+,      s.osuser
+,      s.process
+,      s.machine
+,      to_char(s.logon_time,'DDth HH24:MI:SS') logon
+,      floor(last_call_et/3600)||':'||
+              floor(mod(last_call_et,3600)/60)||':'||
+              mod(mod(last_call_et,3600),60)    IDLE
+,      program||' '||s.module||' '||s.action  module
+from 
+   (select tot_value
+    ,      sid
+    from
+	(select sum(stat.value) tot_value
+        ,      s.sid
+        from v$sesstat stat 
+        ,    v$statname sname
+		,    v$session s
+        where s.sid = stat.sid
+		and   stat.STATISTIC# = sname.STATISTIC#
+        and   sname.name IN( 'consistent gets', 'db block gets'
+                           , 'physical reads' , 'db block changes')
+	and   s.type <> 'BACKGROUND'
+	and   s.schemaname <> 'SYS'
+	--and   s.status = 'ACTIVE'
+        group by s.sid
+        order by tot_value desc)
+    where  rownum < 11)       top_ten
+, v$session    s
+where top_ten.sid = s.sid
+order by 1 desc
+/
+
+---Top 10 Long running sessins
+
+SELECT sid,SQL_ID
+ , Round ( elapsed_time )
+ FROM ( SELECT sid,q.sql_id
+ , elapsed_time / 60000000 elapsed_time       -- CPU_TIME/EXECUTIONS,
+ , disk_reads
+ , executions
+ , first_load_time
+ , last_load_time
+ FROM v$sql q,v$session s
+ WHERE s.sql_address = q.address 
+ ORDER BY elapsed_time DESC )
+ WHERE ROWNUM < 10;
+ 
+
+-----
+ select 'The culprit SQL with SQL_ID 6hhbs09sb16j2 has topped CPU time'
+ from ( SELECT SQL_ID
+ , Round ( elapsed_time / executions )
+ , executions
+ FROM ( SELECT sql_id
+ , elapsed_time / 1000 elapsed_time
+ , disk_reads
+ , executions
+ , first_load_time
+ , last_load_time
+ FROM v$sql
+ ORDER BY elapsed_time DESC )
+ WHERE ROWNUM < 5 )
+ where SQL_ID = '6hhbs09sb16j2';
+ 

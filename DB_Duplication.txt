@@ -1,0 +1,110 @@
+RMAN Duplicaiton
+RMAN has the ability to duplicate, or clone, a database from a backup or from an active database. It is possible to create a duplicate database on a remote server with the same file structure,
+
+Source database:
+    Database name: PRDHR1
+    Single instance
+    Version: 11.2.0.2
+    Hostname: vorcprdhr1
+    Filesystem: regular (/ora_db/prdhr1)
+
+Target database:
+    Database name: TSTHR2 (AUXILIARY database)
+    Single instance
+    Version: 11.2.0.2
+    ORACLE_HOME: /apps/oracle/product/11.2.0/db_1
+    Hostname: vorctsthr2
+    Filesystem: regular (/ora_db/tsthr2) 
+
+PREPARATION STEPS:
+ 
+At Target Server:
+1) Set environment for Target database (Tsthr2)
+    ~oracle/.ora_tsthr2
+
+2) Make sure connectivity to Source and Target database as sys
+    sqlplus sys/xxxxx@target as sysdba
+    sqlplus sys/xxxxx@source as sysdba
+
+3) Test TNSPING to both Target and Source databases
+     Tnsping Source
+    Tnsping Target
+
+4) Make sure passwordfile for Target database exists (tsthr2). If one do not exists for target database create one
+     $orapwd file=$ORACLE_HOME/dbs/orapwtsthr2 password=xxxxx entries=10
+
+5) Add db_file_name_convert parameter to pfile
+    db_file_name_convert=('/ora_db/prdhr1','/ora_db/tsthr2')
+    log_file_name_convert=('/ora_db/prdhr1','/ora_db/tsthr2')
+
+6) Make sure source and target datafile structure is same
+
+7) Startup Auxilary database in nomount state.
+    startup nomount;
+
+-- Follow Active Database Duplicaiton or Backup-Based Duplicaiton Steps (Steps 8-9)
+
+10) Shutdown and restart Target database (Tsthr2) in non-archivelog mode
+    Shutdown immediate;
+    Startup mount;
+    alter database noarchivelog;
+    alter database open;
+    archive log list;
+
+ Active Database Duplication
+
+Oracle 11g introduced the ability to create duplicate databases directly without the need for a backup. This is known as active database duplication. The process is similar to the backup-based duplication, with a few exceptions.
+First, and most obviously, you don't need a backup of the source system, but it does have to be in ARCHIVELOG mode.
+The passwords in the password files must match for both servers, so remember to set the correct password when creating the password file on the destination server.
+Both the source and destination database servers require a "tnsnames.ora" entry for the destination database. In this case I added the following to each server. The destination server still requires the source entry shown in the previous section.
+
+
+8) Make connection to Source and Target databases via RMAN.
+    rman target sys/xxx@prdhr1 auxiliary sys/xxxxx@tsthr190 log=tsthr2_refresh_from_prdhr1.log
+        --Here target database specified is Source database and Auxiliary is Target
+
+9) Run Database duplication command within RMAN
+    duplicate target database to tsthr2  from active database;
+
+Backup-Based Duplication
+    --Tape based duplication
+	--startup taget(aux) database
+	startup nomount;
+
+	--run duplicate database
+	rman TARGET sys/xxxxxx@prdhr1 auxiliary /
+
+	RMAN> run {
+	    set until time "to_date('17-Mar-2014 08:00:00','dd-Mon-yyyy hh24:mi:ss')";
+	    allocate auxiliary  channel ch1 type 'sbt_tape' parms 'ENV=(NB_ORA_SERVER=uddcbpnbu01bk.mkcorp.com,NB_ORA_CLIENT=vorcprdhr1bk.mkcorp.com)';
+	    DUPLICATE DATABASE TO TSTHR2;
+		}
+
+     --Disk based backup duplication
+	
+
+
+
+
+
+We can then duplicate the database using one of the following commands.
+
+    # Backup files are in matching location to that on the source server.
+    # Duplicate database to TARGET's current state.
+    DUPLICATE TARGET DATABASE TO DB11G
+      SPFILE
+      NOFILENAMECHECK;
+
+    # Duplicate database to TARGET's state 4 days ago.
+    DUPLICATE TARGET DATABASE TO DB11G
+      UNTIL TIME 'SYSDATE-4'
+      SPFILE
+      NOFILENAMECHECK;
+
+    # Backup files are in a different location to that on the source server.
+    # Duplicate database to the most recent state possible using the provided backups.
+    # Works with just an AUXILIARY connection only.
+    DUPLICATE DATABASE TO DB11G
+      SPFILE
+      BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+      NOFILENAMECHECK; 

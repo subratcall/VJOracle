@@ -1,0 +1,26 @@
+select sga.allo sga, pga.allo pga,(sga.allo+pga.allo) tot,trunc(SN.END_INTERVAL_TIME,'mi') time
+      from
+    (select snap_id,round(sum(bytes)/1024/1024/1024,3) allo
+       from DBA_HIST_SGASTAT
+      group by snap_id) sga
+    ,(select snap_id,round(sum(value)/1024/1024/1024,3) allo
+        from DBA_HIST_PGASTAT where name = 'total PGA allocated'
+       group by snap_id) pga
+    , dba_hist_snapshot sn
+   where sn.snap_id=sga.snap_id
+     and sn.snap_id=pga.snap_id
+   order by sn.snap_id desc
+   ;
+
+ select name,display_value
+     from v$parameter
+    where name like 'mem%target'
+       or name like 'pga%'
+       or name like 'sga%';
+       
+select round(value/1024/1024/1024,3) PGA_G
+    from v$pgastat    where name = 'total PGA allocated';
+    
+select round(sum(bytes)/1024/1024/1024,3) SGA_G
+    from v$sgastat;    
+    

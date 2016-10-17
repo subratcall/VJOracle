@@ -1,0 +1,12 @@
+CPU Load
+select round(a.value,2) cpu_load, b.value cpu_count, round(a.value/b.value*100,2) load_ratio from
+v$osstat a, v$osstat b
+where a.stat_name = 'LOAD'
+and b.stat_name = 'NUM_CPUS';
+
+HOST Load Average
+uptime | awk '{ print  ( substr($(NF-2),1,  length($(NF-2))-1)) }'
+
+
+Swap monitoring
+vmstat 3 2 | tail -1 | awk '{print $5/1024/1024}'

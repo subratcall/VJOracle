@@ -1,0 +1,311 @@
+
+----------------------------------------------------------------------------------------------
+How To Add a New Disk(s) to An Existing Diskgroup on RAC (Best Practices). [ID 557348.1]
+----------------------------------------------------------------------------------------------
+
+---Diskgroup status/version
+select name, state, round(total_mb/1024,2) Total_GB, round(free_mb/1024,2) Free_GB,
+        round(free_mb/total_mb*100,2) pct_Free, allocation_unit_size/1024/1024 AU, compatibility, database_compatibility
+	from v$asm_diskgroup where total_mb > 1;
+-----
+
+select group_number,disk_number,mount_status,total_mb  from v$asm_disk;
+select group_number,name,total_mb,free_mb from v$asm_diskgroup;
+
+column path format a15
+column LABEL format a8
+column NAME format a5
+select group_number,disk_number,mount_status,total_mb,path,label,name  from v$asm_disk;
+
+column name format a10
+column PATH format a27
+select NAME,PATH,LABEL from v$asm_disk;
+
+COL % FORMAT 99.0
+SELECT name, free_mb, total_mb, free_mb/total_mb*100 "%" FROM v$asm_diskgroup;
+select group_number,name,total_mb,free_mb from v$asm_diskgroup;
+
+*********************************
+--list current disk group configuration
+column DISK_FILE_PATH format a10
+break on DISK_GROUP_NAME
+SELECT
+    NVL(a.name, '[CANDIDATE]')      disk_group_name
+  , b.path                          disk_file_path
+  , b.name                          disk_file_name
+--  , b.failgroup                     disk_file_fail_group
+FROM
+    v$asm_diskgroup a RIGHT OUTER JOIN v$asm_disk b USING (group_number) ORDER BY a.name;
+
+***************************************************************************************************
+Identify Candidate Disks
+
+The current disk group configuration, (TESTDB_DATA1 and candidate disks not assigned to any disk group) has the following configuration:
+
+
+$ ORACLE_SID=+ASM; export ORACLE_SID
+$ sqlplus "/ as sysdba"
+
+SELECT
+    NVL(a.name, '[CANDIDATE]')      disk_group_name
+  , b.path                          disk_file_path
+  , b.name                          disk_file_name
+  , b.failgroup                     disk_file_fail_group
+FROM
+    v$asm_diskgroup a RIGHT OUTER JOIN v$asm_disk b USING (group_number)
+ORDER BY
+    a.name;
+
+Disk Group Name Path            File Name            Fail Group     
+--------------- --------------- -------------------- ---------------
+TESTDB_DATA1    /dev/raw/raw1   TESTDB_DATA1_0000    CONTROLLER1
+                /dev/raw/raw2   TESTDB_DATA1_0001    CONTROLLER1
+                /dev/raw/raw3   TESTDB_DATA1_0002    CONTROLLER2
+                /dev/raw/raw4   TESTDB_DATA1_0003    CONTROLLER2
+
+[CANDIDATE]     /dev/raw/raw5
+                /dev/raw/raw6
+                /dev/raw/raw7
+***************************************************************************************************
+--Find Free space per disk
+col name for a15
+col path for a20
+set lines 122 pages 66
+col AU for 9 hea 'AU|MB'
+col state for a12
+col compatibility for a10 hea 'ASM|Compat'
+col database_compatibility for a10 hea 'Database|Compat'
+col pct_Free for 99.99 head 'Pct|Free'
+col block_size for 99,999 head 'Block|Size'
+col Total_GB for 999,999.99 head 'Total|GB'
+col Free_GB for 999,999.99 head 'Free|GB'
+ 
+col pct_free for 999 hea 'Pct|Free'
+select name, path, total_mb, free_mb, round(free_mb/total_mb*100,2) pct_Free from v$asm_disk where total_mb >1 order by name;
+
+***************************************************************************************************
+col name format a25
+select name, group_number, alias_directory,system_created from v$asm_alias;
+
+select group_number,name,total_mb,free_mb from v$asm_diskgroup;
+
+GROUP_NUMBER NAME            TOTAL_MB    FREE_MB
+------------ --------------- -------- ----------
+           1 ASM_DISK_GRP       51195       8740
+
+***************************************************************************************************
+#### Run the following SQL from ASM and the Instance and record the Data col path format a30 col label format a15 col name format a15 col group_number format 99999 col disk_number format 99999 col total_mb format 99999 set linesize 120
+
+select group_number,disk_number,total_mb,path,label,name  from v$asm_disk;
+
+From the Instance:
+
+select group_number,disk_number,total_mb,path,label,name  from v$asm_disk;
+
+GROUP_NUMBER DISK_NUMBER TOTAL_MB PATH                           LABEL           NAME
+------------ ----------- -------- ------------------------------ --------------- ---------------
+           1           0    10239 ORCL:ASM1                      ASM1            ASM1
+           1           1    10239 ORCL:ASM2                      ASM2            ASM2
+           1           2    10239 ORCL:ASM3                      ASM3            ASM3
+           1           3    10239 ORCL:ASM4                      ASM4            ASM4
+           1           4    10239 ORCL:ASM5                      ASM5            ASM5
+
+
+export ORACLE_SID=+ASM1
+set linesize 2000
+SELECT V.GROUP_NUMBER, V.NAME, V.SECTOR_SIZE, V.BLOCK_SIZE, V.ALLOCATION_UNIT_SIZE, V.STATE, V.TYPE, V.TOTAL_MB, V.FREE_MB
+	FROM SYS.V$ASM_DISKGROUP V;
+
+GROUP_NUMBER NAME                           SECTOR_SIZE BLOCK_SIZE ALLOCATION_UNIT_SIZE STATE       TYPE     TOTAL_MB    FREE_MB
+------------ ------------------------------ ----------- ---------- -------------------- ----------- ------ ---------- ----------
+           1 DATA                           512       	4096              	1048576 MOUNTED     EXTERN     204186     137965
+           2 LOGS                           512       	4096              	1048576 MOUNTED     EXTERN     204186     203715
+
+From the database instance:
+SQL> select group_number,disk_number,total_mb,path,label,name  from v$asm_disk;
+
+GROUP_NUMBER DISK_NUMBER TOTAL_MB PATH                           LABEL           NAME
+------------ ----------- -------- ------------------------------ --------------- ---------------
+           1           5    10239 ORCL:ASM6                      ASM6            ASM6
+           1           6    10239 ORCL:ASM7                      ASM7            ASM7
+           1           7    10239 ORCL:ASM8                      ASM8            ASM8
+           1           8    10239 ORCL:ASM9                      ASM9            ASM9
+           1           9    10239 ORCL:ASM10                     ASM10           ASM10
+
+
+***************************************************************************************************
+ASM OS level commands
+
+--stop/start ASM at os level
+/etc/init.d/oracleasm stop/start   --as root
+
+rpm -qa | grep oracleasm   
+/usr/sbin/oracleasm status
+      
+ls -al /dev/oracleasm/disks
+/etc/init.d/oracleasm listdisks
+
+cat /etc/sysconfig/oracleasm
+	ORACLEASM_SCANORDER="dm"
+
+/usr/sbin/oracleasm-discover 'ORCL:*'          -- To discover ASM disks starting with ORCL
+
+/etc/init.d/oracleasm querydisk -d ASM2    - Query details about ASM2 disk
+oracleasm querydisk -p ASM1  
+
+cat /etc/sysconfig/oracleasm  
+                                        # ORACLEASM_SCANORDER: Matching patterns to order disk scanning 
+                                            ORACLEASM_SCANORDER="dm"
+
+                                        # ORACLEASM_SCANEXCLUDE: Matching patterns to exclude disks from scan
+                                            ORACLEASM_SCANEXCLUDE="sd"
+
+$ASM_HOME/bin/kfod asm_diskstring='ORCL:*' disks=all
+$ASM_HOME/bin/kfod disks=all
+
+***************************************************************************************************
+
+---Add Disk to ASM DG
+
+ALTER DISKGROUP PRDWEU1 ADD DISK 'ORCL:ASM3';
+ALTER DISKGROUP PRDWEU1 ADD DISK 'ORCL:ASM5';
+ALTER DISKGROUP PRDWEU1 ADD DISK 'ORCL:ASM6';
+Diskgroup altered.
+
+---LDC Staging 
+alter diskgroup STGWEU1 add DISK 
+	'/dev/oracleasm/disks/ASM11' NAME  ASM11,
+	'/dev/oracleasm/disks/ASM21' NAME  ASM21,
+	'/dev/oracleasm/disks/ASM22' NAME  ASM22,
+	'/dev/oracleasm/disks/ASM23' NAME  ASM23,
+	'/dev/oracleasm/disks/ASM24' NAME  ASM24,
+	'/dev/oracleasm/disks/ASM25' NAME  ASM25,
+	'/dev/oracleasm/disks/ASM26' NAME  ASM26,
+	'/dev/oracleasm/disks/ASM27' NAME  ASM27;
+
+
+ALTER DISKGROUP ASM_DISK_GRP ADD DISK
+     'ORCL:ASM6' NAME ASM6,
+     'ORCL:ASM7' NAME ASM7,
+     'ORCL:ASM8' NAME ASM8,
+     'ORCL:ASM9' NAME ASM9,
+     'ORCL:ASM10' NAME ASM10;
+
+***************************************************************************************************
+Drop ASM disk from DG
+
+ALTER DISKGROUP ASM_DISK_GRP
+  DROP DISK ASM1, ASM2, ASM3, ASM4, ASM5 REBALANCE POWER 11;
+		--- To have sqlplus not return to you after running the alter diskgroup command you would #### add WAIT to the end.
+***************************************************************************************************
+
+SQL>  select * from v$asm_operation;
+
+GROUP_NUMBER OPERA STAT      POWER     ACTUAL      SOFAR   EST_WORK   EST_RATE EST_MINUTES
+------------ ----- ---- ---------- ---------- ---------- ---------- ---------- -----------
+           1 REBAL RUN           1          1      11895      21431       3449           2
+
+
+---orc01/02 ASM disk LR on 11/15/2012
+
+Linux:
+/etc/init.d/oracleasm listdisks 
+ cat /etc/sysconfig/oracleasm
+ ls -l /dev/oracleasm/disks
+ ls -l /etc/sysconfig/oracleasm*
+ select inst_id,HEADER_STATUS,STATE,NAME,path,LIBRARY from gv$asm_disk;
+    if Header_Status is 'UNKNOWN' modify /etc/sysconfig/oracleasm file for ASM_SCANORDER and ASM_SCAMEXCLUDE parameters values and restart ASMLib
+	/etc/sysconfig/oracleasm 
+	# ORACLEASM_SCANORDER: Matching patterns to order disk scanning
+	ORACLEASM_SCANORDER="dm-"
+
+	# ORACLEASM_SCANEXCLUDE: Matching patterns to exclude disks from scan
+	ORACLEASM_SCANEXCLUDE="sd"
+	
+alter diskgroup LABDG add disk 'ORCL:ASM4';
+alter diskgroup LABDG add disk 'ORCL:ASM5';
+alter diskgroup LABDG add disk 'ORCL:ASM6';
+
+alter diskgroup LABDG drop disk 'ASM1';
+alter diskgroup LABDG drop disk 'ASM2';
+alter diskgroup LABDG drop disk 'ASM3';
+
+select * from v$asm_operation;
+---end---
+
+#### Remove old ASM volumes as root
+
+service oracleasm deletedisk ASM1
+service oracleasm deletedisk ASM2
+service oracleasm deletedisk ASM3
+service oracleasm deletedisk ASM4
+service oracleasm deletedisk ASM5
+
+
+***************************************************************************************************
+V$ASM_DISK
+
+In an Automatic Storage Management instance, V$ASM_DISK displays one row for every disk discovered by the Automatic Storage Management instance, including disks which are not part of any disk group. In a database instance, V$ASM_DISK only displays rows for disks in disk groups in use by the database instance.
+Column 	Datatype 	Description
+GROUP_NUMBER 	NUMBER 	Number of the disk group containing the disk (foreign key to the V$ASM_DISKGROUP view)
+DISK_NUMBER 	NUMBER 	Number assigned to the disk within its disk group
+COMPOUND_INDEX 	NUMBER 	A 32-bit number consisting of a disk group number in the high-order 8 bits and a disk number in the low-order 24 bits (for efficient access to the view)
+INCARNATION 	NUMBER 	Incarnation number for the disk
+MOUNT_STATUS 	VARCHAR2(7) 	Per-instance status of the disk relative to group mounts:
+    MISSING - Automatic Storage Management metadata indicates that the disk is known to be part of the Automatic Storage Management disk group, but no disk in the storage system was found with the indicated name
+    CLOSED - Disk is present in the storage system but is not being accessed by Automatic Storage Management
+    OPENED - Disk is present in the storage system and is being accessed by Automatic Storage Management. This is the normal state for disks in a database instance which are part of a Disk Group being actively used by the instance.
+    CACHED - Disk is present in the storage system, and is part of a disk group being accessed by the Automatic Storage Management instance. This is the normal state for disks in an Automatic Storage Management instance which are part of a mounted disk group.
+    IGNORED - Disk is present in the system, but is ignored by ASM because of one of the following:
+    - The disk is detected by the system library, but is ignored because an ASM library discovered the same disk
+    - ASM has determined that the membership claimed by the disk header is no longer valid
+    CLOSING - ASM is in the process of closing this disk
+HEADER_STATUS 	VARCHAR2(12) 	Per-instance status of the disk as seen by discovery:
+    UNKNOWN - Automatic Storage Management disk header has not been read
+    CANDIDATE - Disk is not part of a disk group and may be added to a disk group with the ALTER DISKGROUP statement
+    INCOMPATIBLE - Version number in the disk header is not compatible with the Automatic Storage Management software version.
+    PROVISIONED - Disk is not part of a disk group and may be added to a disk group with the ALTER DISKGROUP statement. The PROVISIONED header status is different from the CANDIDATE header status in that PROVISIONED implies that an additional platform-specific action has been taken by an administrator to make the disk available for Automatic Storage Management.
+    MEMBER - Disk is a member of an existing disk group. No attempt should be made to add the disk to a different disk group. The ALTER DISKGROUP statement will reject such an addition unless overridden with the FORCE option
+    FORMER - Disk was once part of a disk group but has been dropped cleanly from the group. It may be added to a new disk group with the ALTER DISKGROUP statement.
+    CONFLICT - Automatic Storage Management disk was not mounted due to a conflict
+    FOREIGN - Disk contains data created by an Oracle product other than ASM. This includes datafiles, logfiles, and OCR disks.
+MODE_STATUS 	VARCHAR2(7) 	Global status about which kinds of I/O requests are allowed to the disk:
+    UNKNOWN - Automatic Storage Management disk mode is not known (typically the disk is not mounted)
+    ONLINE - Disk is online and operating normally. Reads and writes are attempted.
+    OFFLINE - Disk is offline and access to data is not permitted. Reads and writes are not attempted. An offline disk remains logically part of its disk group.
+STATE 	VARCHAR2(8) 	Global state of the disk with respect to the disk group:
+    UNKNOWN - Automatic Storage Management disk state is not known (typically the disk is not mounted)
+    NORMAL - Disk is online and operating normally
+    ADDING - Disk is being added to a disk group, and is pending validation by all instances that have the disk group mounted
+    DROPPING - Disk has been manually taken offline and space allocation or data access for the disk halts. Rebalancing will commence to relocate data off the disks to other disks in the disk group. Upon completion of the rebalance, the disk is expelled from the group.
+    HUNG - Disk drop operation cannot continue because there is insufficient space to relocate the data from the disk being dropped
+    FORCING - Disk is being removed from the disk group without attempting to offload its data. The data will be recovered from redundant copies, where possible.
+    DROPPED - Disk has been fully expelled from the disk group
+REDUNDANCY 	VARCHAR2(7) 	External redundancy of the disk:
+    UNKNOWN
+    UNPROT
+    MIRROR
+    PARITY
+LIBRARY 	VARCHAR2(64) 	Name of the library that discovered the disk
+TOTAL_MB 	NUMBER 	Total capacity of the disk (in megabytes)
+FREE_MB 	NUMBER 	Unused capacity of the disk (in megabytes)
+NAME 	VARCHAR2(30) 	Name of the disk
+FAILGROUP 	VARCHAR2(30) 	Name of the failure group containing the disk
+LABEL 	VARCHAR2(31) 	Disk label portion of the name returned by discovery
+PATH 	VARCHAR2(256) 	Operating system pathname portion of the name returned by discovery
+UDID 	VARCHAR2(64) 	Universal Device ID portion of the name returned by discovery
+PRODUCT 	VARCHAR2(32) 	The name of the manufacturer and the name of the product. All disks with the same product id will have the same performance and reliability characteristics.
+CREATE_DATE 	DATE 	Date and time when the disk was added to the disk group
+MOUNT_DATE 	DATE 	Date and time when the disk was mounted by the first instance
+REPAIR_TIMER 	NUMBER 	Seconds remaining until the disk is automatically dropped (0 if not failed)
+READS 	NUMBER 	Total number of I/O read requests for the disk
+WRITES 	NUMBER 	Total number of I/O write requests for the disk
+READ_ERRS 	NUMBER 	Total number of failed I/O read requests for the disk
+WRITE_ERRS 	NUMBER 	Total number of failed I/O write requests for the disk
+READ_TIME 	NUMBER 	Total I/O time (in hundredths of a second) for read requests for the disk if the TIMED_STATISTICS initialization parameter is set to true (0 if set to false)
+WRITE_TIME 	NUMBER 	Total I/O time (in hundredths of a second) for write requests for the disk if the TIMED_STATISTICS initialization parameter is set to true (0 if set to false)
+BYTES_READ 	NUMBER 	Total number of bytes read from the disk
+BYTES_WRITTEN 	NUMBER 	Total number of bytes written to the disk
+
+
+ 

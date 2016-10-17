@@ -1,0 +1,6 @@
+select blocking_session, SESSION_ID, sql_id, wait_class, event, SAMPLE_TIME, WAIT_TIME, TIME_WAITED/1000000 Elapsed_in_second, Program
+    from V$ACTIVE_SESSION_HISTORY
+    where BLOCKING_SESSION is not null
+    and TIME_WAITED/1000000 >=0.5
+    order by 8
+    /

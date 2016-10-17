@@ -1,0 +1,97 @@
+ADRCI
+
+1. VIEWING THE ALERT.LOG
+(uddcbdorc70) devhr1:/home/oracle $ adrci
+ADRCI: Release 11.2.0.2.0 - Production on Fri Mar 16 15:51:55 2012
+Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
+ADR base = "/ora_db/tsthr390/admin/trace"
+
+adrci> show home
+ADR Homes:
+diag/rdbms/tsthr390/tsthr390
+
+adrci> set home diag/rdbms/orcl/orcl
+adrci> show alert -tail -f
+
+An incident is the concrete occurrence of a problem. In other words: The same problem may have multiple incidents. To show that, I will open another terminal and do again a select against the table t, while still tailing the alert log from the first session.
+
+
+adrci> show problem
+
+ADR Home = /ora_db/tsthr390/admin/trace/diag/rdbms/tsthr390/tsthr390:
+*************************************************************************
+0 rows fetched
+
+
+adrci> show incident
+
+ADR Home = /ora_db/tsthr390/admin/trace/diag/rdbms/tsthr390/tsthr390:
+*************************************************************************
+0 rows fetched
+
+adrci> show incident -mode detail -p "incident_id=6201"
+
+adrci> show trace /u01/app/oracle/diag/rdbms/orcl/orcl/incident/incdir_6201/orcl_ora_2299_i6201.trc
+
+3. CREATION OF PACKAGES & ZIP FILES TO SEND TO ORACLE SUPPORT
+
+I may not be able to solve the problem myself. Oracle Support will help me with that one. I gather all the required information with a method called “Incident Packaging Service” (IPS):
+
+adrci> ips create package problem 1 correlate all
+ Created package 2 based on problem id 1, correlation level all
+
+This did not yet create a ZIP file and is therefore referred to as “Logical Package”. The ZIP file is generated from the Logical Package that was created:
+
+adrci> ips generate package 2 in "/home/oracle"  
+Generated package 2 in file /home/oracle/ORA7445qc_20110601112533_COM_1.zip, mode complete
+
+4. MANAGING, ESPECIALLY PURGING OF TRACEFILES
+
+Now to the management of tracefiles. You may notice that 11g creates lots of tracefiles that need to be purged from time to time. In fact, this is done automatically, but you may want to change the default purge policy:
+
+adrci> show tracefile -rt
+   16-MAR-12 14:54:12  diag/rdbms/tsthr390/tsthr390/trace/tsthr390_mmon_5599.trc
+   16-MAR-12 14:50:56  diag/rdbms/tsthr390/tsthr390/trace/tsthr390_lgwr_5591.trc
+   16-MAR-12 08:36:35  diag/rdbms/tsthr390/tsthr390/trace/tsthr390_ora_28268.trc
+   16-MAR-12 08:36:35  diag/rdbms/tsthr390/tsthr390/trace/tsthr390_ora_28270.trc
+   16-MAR-12 02:11:37  diag/rdbms/tsthr390/tsthr390/trace/alert_tsthr390.log
+
+   I have already got some tracefiles. How long are they going to stay?
+
+adrci> show control
+
+ADR Home = /u01/app/oracle/diag/rdbms/orcl/orcl:
+*************************************************************************
+ADRID                SHORTP_POLICY        LONGP_POLICY         LAST_MOD_TIME                            LAST_AUTOPRG_TIME                        LAST_MANUPRG_TIME                        ADRDIR_VERSION       ADRSCHM_VERSION      ADRSCHMV_SUMMARY     ADRALERT_VERSION     CREATE_TIME                              
+-------------------- -------------------- -------------------- ---------------------------------------- ---------------------------------------- ---------------------------------------- -------------------- -------------------- -------------------- -------------------- ----------------------------------------
+1335663986           720                  8760                 2011-05-27 10:16:46.997118 +02:00                                                                                          1                    2                    80                   1                    2011-05-27 10:16:46.997118 +02:00       
+1 rows fetched
+
+THE ORDINARY TRACEFILES WILL STAY FOR 30 DAYS (720 HOURS), WHILE FILES LIKE INCIDENT FILES STAY ONE YEAR (8760 HOURS) BY DEFAULT. WE CAN CHANGE THAT POLICY WITH FOR EXAMPLE:
+
+
+adrci> set control (SHORTP_POLICY = 360)
+adrci> set control (LONGP_POLICY = 2190)
+adrci> show control
+
+ADR Home = /ora_db/tsthr390/admin/trace/diag/rdbms/tsthr390/tsthr390:
+*************************************************************************
+ADRID                SHORTP_POLICY        LONGP_POLICY         LAST_MOD_TIME                            LAST_AUTOPRG_TIME                        LAST_MANUPRG_TIME                        ADRDIR_VERSION       ADRSCHM_VERSION      ADRSCHMV_SUMMARY     ADRALERT_VERSION     CREATE_TIME
+-------------------- -------------------- -------------------- ---------------------------------------- ---------------------------------------- ---------------------------------------- -------------------- -------------------- -------------------- -------------------- ----------------------------------------
+2096391272           360                  2190                 2012-03-16 15:56:48.377228 -05:00        2012-03-11 00:29:59.132358 -06:00        2012-03-16 15:50:51.632283 -05:00        1                    2                    80                   1                    2011-03-24 16:57:11.257184 -05:00
+1 rows fetched
+
+Also, we may want to purge tracefiles manually. Following command will manually purge all tracefiles older than 2 days (2880 minutes):
+
+adrci> purge -age 2880 -type trace
+adrci> show tracefile -rt
+   16-MAR-12 14:54:12  diag/rdbms/tsthr390/tsthr390/trace/tsthr390_mmon_5599.trc
+   16-MAR-12 14:50:56  diag/rdbms/tsthr390/tsthr390/trace/tsthr390_lgwr_5591.trc
+   16-MAR-12 08:36:35  diag/rdbms/tsthr390/tsthr390/trace/tsthr390_ora_28268.trc
+
+   
+   
+
+
+ 
+ 

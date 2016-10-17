@@ -1,0 +1,285 @@
+--Find existing ASM diskgroup and redudancy setting
+SQL> select name, state, type, total_mb, free_mb from v$asm_diskgroup;
+ADCDEVCRS                 MOUNTED     HIGH         2047       1651
+DEVMSAF                   MOUNTED     EXTERN     153598      27962
+ECOMEX                    MOUNTED     EXTERN     204797     187320
+
+--Find Disks allocated to diskgroup
+(uadcbdrac77) +ASM2:$asmcmd lsdsk -k -G ADCDEVCRS
+Total_MB  Free_MB  OS_MB  Name                     Failgroup   Failgroup_Type  Library                                               Label       UDID  Product  Redund   Path
+    2047     1651      0  _DROPPED_0000_ADCDEVCRS  ASMOCRVOT1  REGULAR         System                                                                           UNKNOWN
+    2047     1651      0  _DROPPED_0003_ADCDEVCRS  ASMOCRVOT4  REGULAR         System                                                                           UNKNOWN
+    2047     1651   2047  ASMOCRVOT5               ASMOCRVOT5  REGULAR         ASM Library - Generic Linux, version 2.0.4 (KABI_V2)  ASMOCRVOT5                 UNKNOWN  ORCL:ASMOCRVOT5
+
+
+(uadcbdrac77) +ASM2:$ asmcmd lsdsk --discovery -G ADCDEVCRS
+Path
+ORCL:ASMOCRVOT5
+
+Verify that OCR location is pointing to the correct diksgroup on both nodes
+cat /etc/oracle/ocr.loc
+ocrconfig_loc=+ADCDEVCRS
+local_only=FALSE
+
+--list the voting disk
+(uadcbdrac77) +ASM2:/usr/oracle/product/grid_11203 $ crsctl query css votedisk
+##  STATE    File Universal Id                File Name Disk group
+--  -----    -----------------                --------- ---------
+ 1. ONLINE   99d3512b650d4fa6bf664c4d12e5a833 (ORCL:ASMOCRVOT1) [ADCDEVCRS]
+ 2. ONLINE   60364e8ee3e74f33bf15c65b67fec8bd (ORCL:ASMOCRVOT4) [ADCDEVCRS]
+ 3. ONLINE   1dc751e236314f50bf9bf584184b630d (ORCL:ASMOCRVOT5) [ADCDEVCRS]
+Located 3 voting disk(s).
+
+--Check OCR disk and health details
+[root@uadcbdrac76 ~]# ocrcheck
+Status of Oracle Cluster Registry is as follows :
+         Version                  :          3
+         Total space (kbytes)     :     262120
+         Used space (kbytes)      :       3304
+         Available space (kbytes) :     258816
+         ID                       : 1518392892
+         Device/File Name         : +ADCDEVCRS
+                                    Device/File integrity check succeeded
+                                    Device/File not configured
+                                    Device/File not configured
+                                    Device/File not configured
+                                    Device/File not configured
+         Cluster registry integrity check succeeded
+         Logical corruption check succeeded
+
+--Check OCR backups
+[root@uadcbdrac76 ~]# ocrconfig -showbackup
+uadcbdrac76     2013/07/10 07:55:03     /usr/oracle/product/grid_11203/cdata/devadc/backup00.ocr
+uadcbdrac76     2013/07/10 03:55:02     /usr/oracle/product/grid_11203/cdata/devadc/backup01.ocr
+uadcbdrac76     2013/07/09 23:55:02     /usr/oracle/product/grid_11203/cdata/devadc/backup02.ocr
+uadcbdrac76     2013/07/09 03:55:00     /usr/oracle/product/grid_11203/cdata/devadc/day.ocr
+uadcbdrac76     2013/07/01 17:50:53     /usr/oracle/product/grid_11203/cdata/devadc/week.ocr
+uadcbdrac76     2013/07/02 09:41:13     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130702_094113.ocr
+uadcbdrac76     2013/07/02 09:41:03     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130702_094103.ocr
+uadcbdrac77     2013/05/30 07:51:01     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130530_075101.ocr
+uadcbdrac76     2013/03/15 11:20:34     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_112034.ocr
+uadcbdrac76     2013/03/15 10:59:28     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_105928.ocr
+
+--Verify using cluvfy
+(uadcbdrac77) +ASM2:$ cluvfy comp ocr -n all -verbose
+
+Verifying OCR integrity
+Checking OCR integrity...
+Checking the absence of a non-clustered configuration...
+All nodes free of non-clustered, local-only configurations
+ASM Running check passed. ASM is running on all specified nodes
+Checking OCR config file "/etc/oracle/ocr.loc"...
+OCR config file "/etc/oracle/ocr.loc" check successful
+Disk group for ocr location "+ADCDEVCRS" available on all the nodes
+NOTE:
+This check does not verify the integrity of the OCR contents. Execute 'ocrcheck' as a privileged user to verify the contents of OCR.
+OCR integrity check passed
+Verification of OCR integrity was successful.
+
+--
+
+SQL> select GROUP_NUMBER,DISK_NUMBER,LABEL,PATH,MODE_STATUS,STATE,MOUNT_STATUS from  v$asm_disk where GROUP_NUMBER=1;
+
+GROUP_NUMBER DISK_NUMBER LABEL       PATH             MODE_ST STATE    MOUNT_S
+------------ ----------- ----------- ---------------- ------- -------- -------
+           1           0                              OFFLINE FORCING  MISSING
+           1           3                              OFFLINE FORCING  MISSING
+           1           4 ASMOCRVOT5  ORCL:ASMOCRVOT5  ONLINE  NORMAL   CACHED
+
+SQL> SELECT dg.name AS diskgroup, SUBSTR(d.name,1,16) AS asmdisk,
+     SUBSTR(dg.compatibility,1,12) AS asm_compat, SUBSTR(dg.database_compatibility,1,12) AS db_compat
+     FROM V$ASM_DISKGROUP dg, V$ASM_DISK d WHERE dg.name LIKE 'ADCDEVCRS' AND dg.group_number = d.group_number;
+
+
+DISKGROUP                      ASMDISK          ASM_COMPAT   DB_COMPAT
+------------------------------ ---------------- ------------ ------------
+ADCDEVCRS                      _DROPPED_0000_AD 11.2.0.0.0   10.1.0.0.0
+ADCDEVCRS                      _DROPPED_0003_AD 11.2.0.0.0   10.1.0.0.0
+ADCDEVCRS                      ASMOCRVOT5       11.2.0.0.0   10.1.0.0.0
+
+
+--Diskgroup and instance associated with it
+SQL> SELECT dg.name AS diskgroup, SUBSTR(c.instance_name,1,12) AS instance,
+  2      SUBSTR(c.db_name,1,12) AS dbname, SUBSTR(c.SOFTWARE_VERSION,1,12) AS software,
+  3      SUBSTR(c.COMPATIBLE_VERSION,1,12) AS compatible
+  4      FROM V$ASM_DISKGROUP dg, V$ASM_CLIENT c
+  5      WHERE  dg.group_number = c.group_number;
+
+DISKGROUP                      INSTANCE     DBNAME   SOFTWARE     COMPATIBLE
+------------------------------ ------------ -------- ------------ ------------
+ADCDEVCRS                      +ASM1        +ASM     11.2.0.3.0   11.2.0.3.0
+DEVMSAF                        devmsaf11    devmsaf1 11.2.0.3.0   11.2.0.0.0
+ECOMEX                         devcomex1    devcomex 11.2.0.3.0   11.2.0.0.0
+
+
+
+
+column label format a11
+column path format a16
+set linesize 300
+column name format a25
+select GROUP_NUMBER,DISK_NUMBER,LABEL,NAME,MODE_STATUS,STATE,MOUNT_STATUS,MODE_STATUS,STATE,HEADER_STATUS from  v$asm_disk order by disk_number
+GROUP_NUMBER DISK_NUMBER LABEL       NAME                      MODE_ST STATE    MOUNT_S MODE_ST STATE    HEADER_STATU
+------------ ----------- ----------- ------------------------- ------- -------- ------- ------- -------- ------------
+           0           0 ASMOCRVOT1                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           3           0 ASM05       ASM05                     ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           2           0 ASM01       ASM01                     ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           1           0             _DROPPED_0000_ADCDEVCRS   OFFLINE FORCING  MISSING OFFLINE FORCING  UNKNOWN
+           0           1 ASM02                                 ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           2 ASM03                                 ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           3 ASM04                                 ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           1           3             _DROPPED_0003_ADCDEVCRS   OFFLINE FORCING  MISSING OFFLINE FORCING  UNKNOWN
+           0           4 ASMOCRVOT2                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           1           4 ASMOCRVOT5  ASMOCRVOT5                ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           0           5 ASM06                                 ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           6 ASM10                                 ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           7 ASM7                                  ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   FORMER
+           0           8 ASM8                                  ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           9 ASM9                                  ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          10 ASMOCRVOT3                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           0          11 ASMOCRVOT10                           ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          12 ASMOCRVOT11                           ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          13 ASMOCRVOT12                           ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          14 ASMOCRVOT4                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           0          18 ASMOCRVOT6                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          19 ASMOCRVOT7                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          20 ASMOCRVOT8                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          21 ASMOCRVOT9                            ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+
+24 rows selected.
+
+
+
+
+----SQL> alter diskgroup ADCDEVCRS check all norepair;  -- This will dismount DG if any corruption found -BEWARE
+
+---$ORACLE_HOME/bin/amdu -diskstring '/dev/oracleasm/disks/*' -dump 'ADCDEVCRS'  -- non intrusive.. no unmount if any corruption found
+---	read report.txt to find any corruption info
+
+
+--Create new ASM  DG DEVCRS using ASMOCR7,8,9,10,11
+SQL> select GROUP_NUMBER,DISK_NUMBER,LABEL,PATH,MODE_STATUS,STATE,MOUNT_STATUS from  v$asm_disk where GROUP_NUMBER=4;
+
+GROUP_NUMBER DISK_NUMBER LABEL       PATH             MODE_ST STATE    MOUNT_S
+------------ ----------- ----------- ---------------- ------- -------- -------
+           4           0 ASMOCRVOT10 ORCL:ASMOCRVOT10 ONLINE  NORMAL   CACHED
+           4           1 ASMOCRVOT11 ORCL:ASMOCRVOT11 ONLINE  NORMAL   CACHED
+           4           2 ASMOCRVOT7  ORCL:ASMOCRVOT7  ONLINE  NORMAL   CACHED
+           4           3 ASMOCRVOT8  ORCL:ASMOCRVOT8  ONLINE  NORMAL   CACHED
+           4           4 ASMOCRVOT9  ORCL:ASMOCRVOT9  ONLINE  NORMAL   CACHED
+
+
+(uadcbdrac76) +ASM1:/home/oracle $ asmcmd lsdsk --discovery -G DEVCRS
+Path
+ORCL:ASMOCRVOT10
+ORCL:ASMOCRVOT11
+ORCL:ASMOCRVOT7
+ORCL:ASMOCRVOT8
+ORCL:ASMOCRVOT9
+
+
+SQL> select name, state, type, total_mb, free_mb from v$asm_diskgroup;
+
+NAME                           STATE       TYPE     TOTAL_MB    FREE_MB
+------------------------------ ----------- ------ ---------- ----------
+ADCDEVCRS                      MOUNTED     HIGH         2047       1651
+DEVMSAF                        MOUNTED     EXTERN     153598      27962
+ECOMEX                         MOUNTED     EXTERN     204797     182320
+DEVCRS                         MOUNTED     HIGH        10740      10451
+
+SQL> select GROUP_NUMBER,DISK_NUMBER,LABEL,NAME,MODE_STATUS,STATE,MOUNT_STATUS,MODE_STATUS,STATE,HEADER_STATUS from  v$asm_disk order by disk_number;
+
+GROUP_NUMBER DISK_NUMBER LABEL                           NAME                      MODE_ST STATE    MOUNT_S MODE_ST STATE    HEADER_STATU
+------------ ----------- ------------------------------- ------------------------- ------- -------- ------- ------- -------- ------------
+           3           0 ASM05                           ASM05                     ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           0           0 ASMOCRVOT1                                                ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           1           0                                 _DROPPED_0000_ADCDEVCRS   OFFLINE FORCING  MISSING OFFLINE FORCING  UNKNOWN
+           2           0 ASM01                           ASM01                     ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           4           0 ASMOCRVOT10                     ASMOCRVOT10               ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           0           1 ASM02                                                     ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           4           1 ASMOCRVOT11                     ASMOCRVOT11               ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           0           2 ASM03                                                     ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           4           2 ASMOCRVOT7                      ASMOCRVOT7                ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           0           3 ASM04                                                     ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           1           3                                 _DROPPED_0003_ADCDEVCRS   OFFLINE FORCING  MISSING OFFLINE FORCING  UNKNOWN
+           4           3 ASMOCRVOT8                      ASMOCRVOT8                ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           0           4 ASMOCRVOT2                                                ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           4           4 ASMOCRVOT9                      ASMOCRVOT9                ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           1           4 ASMOCRVOT5                      ASMOCRVOT5                ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           0           5 ASM06                                                     ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           6 ASM10                                                     ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           7 ASM7                                                      ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   FORMER
+           0           8 ASM8                                                      ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0           9 ASM9                                                      ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          10 ASMOCRVOT3                                                ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           0          13 ASMOCRVOT12                                               ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+           0          14 ASMOCRVOT4                                                ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   MEMBER
+           0          18 ASMOCRVOT6                                                ONLINE  NORMAL   CLOSED  ONLINE  NORMAL   PROVISIONED
+
+24 rows selected.
+
+
+[root@uadcbdrac76 bin]# ocrconfig -add +DEVCRS
+[root@uadcbdrac76 bin]# ocrcheck
+Status of Oracle Cluster Registry is as follows :
+         Version                  :          3
+         Total space (kbytes)     :     262120
+         Used space (kbytes)      :       3304
+         Available space (kbytes) :     258816
+         ID                       : 1518392892
+         Device/File Name         : +ADCDEVCRS
+                                    Device/File integrity check succeeded
+         Device/File Name         :    +DEVCRS
+                                    Device/File integrity check succeeded
+
+                                    Device/File not configured
+
+                                    Device/File not configured
+
+                                    Device/File not configured
+
+         Cluster registry integrity check succeeded
+
+         Logical corruption check succeeded
+
+
+(uadcbdrac76) +ASM1:/usr/oracle/product/grid_11203/bin $ crsctl replace votedisk +DEVCRS
+Successful addition of voting disk 459629909f274f51bfbb3a244e29f472.
+Successful addition of voting disk 1fd7f1e25d244feebfcd83d5b404b68a.
+Successful addition of voting disk a4521944068e4ff2bfedd05ce8aba21f.
+Successful addition of voting disk 32775a30d0854f8abf6741569d79d00b.
+Successful addition of voting disk 8787d8c91be34f5ebf71ba8cb36ca99d.
+Successful deletion of voting disk 99d3512b650d4fa6bf664c4d12e5a833.
+Successful deletion of voting disk 60364e8ee3e74f33bf15c65b67fec8bd.
+Successful deletion of voting disk 1dc751e236314f50bf9bf584184b630d.
+Successfully replaced voting disk group with +DEVCRS.
+CRS-4266: Voting file(s) successfully replaced
+
+SQL> connect / as sysasm
+Connected.
+SQL> create pfile from spfile;
+
+File created.
+
+SQL> show parameter spfile;
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+spfile                               string      +ADCDEVCRS/devadc/asmparameter
+                                                 file/registry.253.807621653
+
+
+SQL> create spfile='+DEVCRS' from pfile;
+
+File created.
+
+
+$ crsctl query css votedisk
+##  STATE    File Universal Id                File Name Disk group
+--  -----    -----------------                --------- ---------
+ 1. ONLINE   459629909f274f51bfbb3a244e29f472 (ORCL:ASMOCRVOT10) [DEVCRS]
+ 2. ONLINE   1fd7f1e25d244feebfcd83d5b404b68a (ORCL:ASMOCRVOT11) [DEVCRS]
+ 3. ONLINE   a4521944068e4ff2bfedd05ce8aba21f (ORCL:ASMOCRVOT7) [DEVCRS]
+ 4. ONLINE   32775a30d0854f8abf6741569d79d00b (ORCL:ASMOCRVOT8) [DEVCRS]
+ 5. ONLINE   8787d8c91be34f5ebf71ba8cb36ca99d (ORCL:ASMOCRVOT9) [DEVCRS]
+Located 5 voting disk(s).

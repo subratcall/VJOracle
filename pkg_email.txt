@@ -1,0 +1,39 @@
+create or replace package oraadmin.pkg_email
+is
+       -- Created by Andrey Dekanovich
+       -- To support various monitoring scripts for Oracle database
+       -- Version 0.1
+       -- Changelog 
+       --     08-APR-2011       v 0.1          Draft specification created.
+       --     13-APR-2011       v 0.2          Created fully working email send procedure
+       --     01-NOV-2011       v 0.2          Fixed bug with empty plain message sending out.
+       --
+       --
+    
+        -- main plain text email sending procedure
+        procedure sp_send_message      ( p_from     varchar2
+                                       , p_to       varchar2                                          -- ;-separated list
+                                       , p_cc       varchar2    default null                          -- ;-separated list
+                                       , p_bcc      varchar2    default null                          -- ;-separated list
+                                       , p_subject  varchar2    default 'Oracle email facility message.'
+                                       , p_message  varchar2    default 'Oracle email facility test message body.'
+                                       , p_type     varchar2    default 'plain'         ---  plain/html
+                                        );
+                                        
+        -- simplified interface for plain message  
+        procedure sp_send_plain_message( p_to       varchar2
+                                       , p_subject    varchar2
+                                       , p_message  varchar2
+                                       , p_cc       varchar2    default null                          
+                                       , p_bcc      varchar2    default null                          
+                                        );
+        
+        -- simplified interface for html message                                  
+         procedure sp_send_html_message( p_to       varchar2
+                                       , p_subject    varchar2
+                                       , p_message  varchar2
+                                       , p_cc       varchar2    default null                          
+                                       , p_bcc      varchar2    default null                          
+                                        );
+       
+end pkg_email;

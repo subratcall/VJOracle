@@ -1,0 +1,62 @@
+--10g Auto stats collection job
+SELECT STATE FROM DBA_SCHEDULER_JOBS WHERE JOB_NAME = 'GATHER_STATS_JOB';
+SELECT 
+   a.job_name, 
+   a.enabled, 
+   c.window_name, 
+   c.schedule_name,
+   c.start_date, 
+   c.repeat_interval
+FROM 
+   dba_scheduler_jobs             a, 
+   dba_scheduler_wingroup_members b, 
+   dba_scheduler_windows          c
+WHERE job_name='GATHER_STATS_JOB' And a.schedule_name=b.window_group_name and b.window_name=c.window_name;
+
+exec dbms_scheduler.disable(’GATHER_STATS_JOB’);
+exec dbms_scheduler.enable(’GATHER_STATS_JOB’);
+
+
+--11g Automatic Maintenance Tasks
+
+    What is the name of the default stats gathering job on 11g?
+
+    The automatic statistics gathering job on 11g is called "auto optimizer stats collection".
+    What are the default windows for the automated maintenance task to run?
+    In 11g daily maintenance windows are provided. by default these are defined as :
+
+        Weeknights: Starts at 10 p.m. and ends at 2 a.m.
+        Weekends: Starts at 6 a.m. is 20 hours long.
+
+The GATHER_STATS_JOB does not exist in 11g (the name does not exist). Instead it has been included in Automatic Maintenance Tasks.
+
+The following are the tasks that AutoTask automatically schedules in these maintenance windows:
+
+select CLIENT_NAME from DBA_AUTOTASK_CLIENT
+ 
+ CLIENT_NAME
+ ----------------------------------------------------------------
+ auto optimizer stats collection
+ auto space advisor
+ sql tuning advisor
+
+--Enable job
+exec DBMS_AUTO_TASK_ADMIN.ENABLE(client_name => 'auto optimizer stats collection', operation => NULL,  window_name => NULL);
+
+--Disable job
+
+exec DBMS_AUTO_TASK_ADMIN.DISABLE(client_name => 'auto optimizer stats collection', operation => NULL,  window_name => NULL);
+
+
+--Check the status of the 'auto optimizer stats collection'?
+select client_name, JOB_SCHEDULER_STATUS 
+ from DBA_AUTOTASK_CLIENT_JOB
+ where client_name='auto optimizer stats collection';
+
+--See the history of the automatic stats job for each day?
+SELECT client_name, window_name, jobs_created, jobs_started, jobs_completed
+ FROM dba_autotask_client_history
+ WHERE client_name like '%stats%';
+
+FAQ: Automatic Statistics Collection [ID 1233203.1]
+

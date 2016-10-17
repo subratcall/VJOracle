@@ -1,0 +1,69 @@
+Cluster High Availability IP (HAIP)
+The Cluster HAIP 11gR2
+
+Grid Infrastructure Redundant Interconnect
+
+Redundant Interconnect is supported natively by Grid Infrastructure starting from 11.2.0.2.
+Multiple private network adapters can be defined either during the installation phase or afterward using the oifcfg.
+All Oracle Database and Cluster components (CSS, OCR,CRS, CTSS, and EVM) will use them automatically.
+Oracle will actively use a maximum of four private network adapters at a time, even if more are defined.
+
+
+11Gr2 new cluster resource:
+	ora.cluster_interconnect.haip
+This resource will start one to four link local HAIP on private network adapters.
+
+They will be used for interconnect communication for Oracle RAC, Oracle ASM, and Oracle ACFS. 
+
+Checking The Process haip process with crsctl
+$ crsctl stat res -t -init |grep -1 haip
+	ora.cluster_interconnect.haip
+	      1        ONLINE  ONLINE       uadcbprac56
+
+RAC networks, checking with oracle interface configuration tool (oifcfg):
+$ oifcfg getif
+	eth4  10.1.56.0  global  cluster_interconnect
+	eth5  10.1.57.0  global  cluster_interconnect
+	bond0  10.10.224.0  global  public
+
+And here we can see the private NIC is holding an extra network,169.254.0.0
+	$ oifcfg iflist -p -n |grep eth4
+	eth4  10.1.56.0  PRIVATE  255.255.255.0
+	eth4  169.254.0.0  UNKNOWN  255.255.128.0
+	$ oifcfg iflist -p -n |grep eth5
+	eth5  10.1.57.0  PRIVATE  255.255.255.0
+	eth5  169.254.128.0  UNKNOWN  255.255.128.0
+
+	$  ifconfig -a |grep eth4
+	eth4      Link encap:Ethernet  HWaddr 90:E2:BA:13:35:B8
+	eth4:1    Link encap:Ethernet  HWaddr 90:E2:BA:13:35:B8
+
+Check on the Database/ASM which interconnect is used
+sqlplus /nolog
+connect / as sysdba
+	SELECT a.INSTANCE_NAME, b.NAME,b.IP_ADDRESS
+	from gv$cluster_interconnects b,gv$instance a where a.inst_id = b.inst_id;
+		INSTANCE_NAME    NAME            IP_ADDRESS
+		---------------- --------------- ----------------
+		devcomex1        eth5:1          169.254.168.49
+		devcomex1        eth4:1          169.254.117.40
+		devcomex2        eth5:1          169.254.130.126
+		devcomex2        eth4:2          169.254.92.252
+
+
+		INSTANCE_NAME    NAME            IP_ADDRESS
+		---------------- --------------- ----------------
+		+ASM1            eth4:1          169.254.117.40
+		+ASM1            eth5:1          169.254.168.49
+		+ASM2            eth4:2          169.254.92.252
+		+ASM2            eth4:1          169.254.130.126
+
+$ grep eth4 alert_devcomex1.log
+	Private Interface 'eth4:1' configured from GPnP for use as a private interconnect.
+	[name='eth4:1', type=1, ip=169.254.117.40, mac=90-e2-ba-13-35-b8, net=169.254.0.0/17, mask=255.255.128.0, use=haip:cluster_interconnect/62]
+
+
+Note: interconnect will use virtual private IP 169.254.xxx.xxx instead of real private IP.
+
+
+http://teammk/IST/Teams/BTS/DataInfraServices/DatabaseAdministration/Oracle%20Documents/Clusterware-RAC/11g-Grid%20Infrastructure/HAIP-CHM.pdf

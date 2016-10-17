@@ -1,0 +1,84 @@
+1)  If using spfile:
+	Issue the following command to dump the spfile into an init.ora file:
+		SQL> create pfile='rename_instance' from spfile;
+    	Edit the init parameter file and change all references to the old instance name and put the new instance name in the file 
+	(instance_name, instance_number, thread, undo_tablespace)
+	Another way to update the spfile for each instance would be, you would have to do this for each init parameter:
+		alter system set instance_name='VCSTST5A' scope=spfile sid='vcstst5a';
+    If using init.ora
+    	Edit the init parameter file and change all references to the old instance name and put the new instance name in the file 
+	(instance_name, instance_number, thread, undo_tablespace)
+
+
+2) Stop all services related to the instance
+
+SQL> shutdown database
+
+3) rename the file orapwd and init.ora file and modify oratab, .ora_<INSTANCE_NAME>, tnsnames entry, and the listener file according to the new instance entry
+
+I had to rename orapwd and init.ora (I did not rename the temporary init.ora file that was created if using an spfile, 
+but the one with the spfile location in it was renamed) and modified tnsnames.ora
+
+4) Then use srvctl to remove the instance.
+
+srvctl remove instance -d vcstst5 -i vcstst52
+
+5) Then use srvctl to add the instance:
+
+srvctl add instance -d vcstst5 -i vcstst5a -n uddcbddev10
+
+6)  Start all the services.
+
+If using spfile:
+	SQL> startup pfile='rename_instance' 
+	SQL> create spfile='+VCSTST5/vcstst5/spfilevcstst5.ora' from pfile='rename_instance';
+	SQL> shutdown immediate   (Did this on both servers to verify)
+	SQL> startup              (Did this on both servers to verify)
+If using init.ora:
+	SQL> startup
+
+7)  Go into Grid Control remove the instance and then add a new instance.
+	Targets -> Databases -> Find the cluster database name and then hit configure.
+	Select the old instance name under instances and hit remove -> next -> submit -> ok.
+	Targets -> Databases -> Find the cluster database name and then hit configure.
+	Under Instances hit add (modify Instance Name, Database SID, and any other parameters) -> ok -> next -> submit -> ok.
+
+
+Additional Notes:
+
+ 
+I have changed my spfile with alter system set <parameter_name> =.... scope=spfile. The spfile is on ASM storage and the database will not start.
+How to recover: 
+ 
+
+In $ORACLE_HOME/dbs
+
+. oraenv <instance_name>
+
+sqlplus "/ as sysdba" 
+
+startup nomount
+
+create pfile='recoversp' from spfile 
+/
+shutdown immediate
+quit
+ 
+Now edit the newly created pfile to change the parameter to something sensible.
+
+Then:
+ 
+sqlplus "/ as sysdba"
+
+startup pfile='recoversp' (or whatever you called it in step one).
+ 
+create spfile='+DATA/GASM/spfileGASM.ora' from pfile='recoversp' 
+/
+N.B.The name of the spfile is in your original init<instance_name>.ora so adjust to suit
+
+shutdown immediate
+startup
+quit
+
+ 
+ 

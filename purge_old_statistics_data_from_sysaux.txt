@@ -1,0 +1,63 @@
+SQL> connect / as sysdba
+Connected.
+SQL> create table SYSTEM.WRI$_OPTSTAT_HISTGRM_HISTORY as (select * from sys.WRI$_OPTSTAT_HISTGRM_HISTORY where savtime > SYSDATE - 3);
+
+SQL> truncate table sys.WRI$_OPTSTAT_HISTGRM_HISTORY;
+
+Table truncated.
+
+SQL> insert into sys.WRI$_OPTSTAT_HISTGRM_HISTORY select * from system.WRI$_OPTSTAT_HISTGRM_HISTORY;
+
+1394615 rows created.
+
+SQL> commit;
+
+Commit complete.
+
+SQL> drop index SYS.I_WRI$_OPTSTAT_H_OBJ#_ICOL#_ST;
+
+Index dropped.
+
+SQL> drop index SYS.I_WRI$_OPTSTAT_H_ST;
+
+Index dropped.
+
+SQL>   create index SYS.I_WRI$_OPTSTAT_H_OBJ#_ICOL#_ST on SYS.WRI$_OPTSTAT_HISTGRM_HISTORY (OBJ#, INTCOL#, SYS_EXTRACT_UTC(SAVTIME), COLNAME)
+  2    tablespace SYSAUX
+  3    pctfree 10
+  4    initrans 2
+  5    maxtrans 255
+  6    storage
+  7    (
+  8      initial 64K
+  9      next 1M
+ 10      minextents 1
+ 11      maxextents unlimited
+ 12    );
+
+Index created.
+
+SQL> create index SYS.I_WRI$_OPTSTAT_H_ST on SYS.WRI$_OPTSTAT_HISTGRM_HISTORY (SYS_EXTRACT_UTC(SAVTIME))
+  tablespace SYSAUX
+  pctfree 10
+  initrans 2
+  maxtrans 255
+  storage
+  (
+    initial 64K
+    next 1M
+    minextents 1
+    maxextents unlimited
+  );  2    3    4    5    6    7    8    9   10   11   12
+
+Index created.
+
+SQL> exec DBMS_STATS.PURGE_STATS(SYSDATE-3);
+
+PL/SQL procedure successfully completed.
+
+SQL> drop table system.WRI$_OPTSTAT_HISTGRM_HISTORY;
+
+Table dropped.
+
+SQL>

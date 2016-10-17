@@ -1,0 +1,181 @@
+create or replace package body oraadmin.pkg_email
+AS
+    mailhost varchar2(100) := 'mx.marykay.ru';
+------------------------------------------------------------------------------------------------------------------------------------------
+--                                            Main sending procedure sp_send_message
+------------------------------------------------------------------------------------------------------------------------------------------
+    procedure sp_send_message        (   p_from     varchar2    
+                                       , p_to       varchar2                                          -- ;-separated list
+                                       , p_cc       varchar2    default null                          -- ;-separated list
+                                       , p_bcc      varchar2    default null                          -- ;-separated list
+                                       , p_subject  varchar2    default 'Oracle email facility message.'
+                                       , p_message  varchar2    default 'Oracle email facility test message body.'
+                                       , p_type     varchar2    default 'plain'         ---  plain/html
+                                       )
+    as            
+      mail_conn      UTL_SMTP.CONNECTION;
+      v_from         varchar2(32767);
+      v_body         clob                     default   empty_clob;
+      v_tmp          varchar2(32767); 
+      v_boundary     varchar2(100)            default   'SentFrompk_emailpackageFoo';
+      v_offset       integer                  default   1;
+      v_amount       integer                  default   1900;
+      v_cnt          integer                  default   1;
+      v_to           varchar2(32767)          default   '';
+      v_addr         varchar2(150)            default   '';
+    begin
+    
+      -- open the connection
+      mail_conn := UTL_SMTP.OPEN_CONNECTION (mailhost, 25);
+--      dbms_output.put_line('Connection opened');
+                   
+      -- setting mail relay host
+      UTL_SMTP.HELO (mail_conn, 'testmsg');
+--      dbms_output.put_line('helo');
+          
+      -- setting email sender
+      if p_from is null then 
+         v_from:='oracle@'||UTL_INADDR.GET_HOST_NAME;
+      else
+         v_from:=p_from;
+      end if;
+      UTL_SMTP.MAIL( mail_conn, v_from);
+--      dbms_output.put_line('sender set');
+            
+      -- setting recipient
+      v_to := p_to||';'||p_cc||';'||p_bcc||';';
+      --dbms_output.put_line(v_to);
+      while instr(v_to,';')>0 loop
+        v_addr := substr(v_to,1,instr(v_to,';')-1);
+        v_to := substr(v_to,instr(v_to,';')+1, length(v_to));
+        if length(v_addr)>0 then
+              UTL_SMTP.RCPT (mail_conn, v_addr);
+        end if;
+        --debug
+        dbms_output.put_line(v_addr);
+      end loop;
+            
+      --UTL_SMTP.RCPT (mail_conn, p_to);
+      
+--      dbms_output.put_line('rcpt set');
+    
+      -- form the header
+      v_tmp := v_tmp || 'From: '     || v_from                || UTL_TCP.CRLF;
+      v_tmp := v_tmp || 'To: '       || p_to                  || UTL_TCP.CRLF;
+      v_tmp := v_tmp || 'Cc: '       || NVL(p_cc,'')          || UTL_TCP.CRLF;
+      v_tmp := v_tmp || 'Subject: '  || NVL(p_subject,'')     || UTL_TCP.CRLF;
+      v_tmp := v_tmp || 'Reply-To: ' || p_to                  || UTL_TCP.CRLF;
+      
+      case 
+          when p_type = 'html' then
+            begin
+              -- process HTML messahe
+              v_tmp := v_tmp || 'Content-Type: multipart/alternative; boundary=' || 
+                                 chr(34) || v_boundary ||  chr(34) || chr(13) || 
+                                 chr(10);
+              
+              --write the header to the blob
+              DBMS_LOB.createtemporary(v_body,false,10);
+              DBMS_LOB.writeappend(v_body, length(v_tmp), v_tmp);
+        
+              -- Write the HTML boundary
+              v_tmp := UTL_TCP.CRLF||UTL_TCP.CRLF||'--' || v_boundary || UTL_TCP.CRLF;
+              v_tmp := v_tmp || 'content-type: text/html;' || UTL_TCP.CRLF || UTL_TCP.CRLF;
+        --      l_offset := DBMS_LOB.getlength(l_body_html) + 1;
+              DBMS_LOB.writeappend(v_body, length(v_tmp), v_tmp);
+                    
+              -- Write the message
+              DBMS_LOB.writeappend(v_body, length(p_message), p_message);
+        
+              -- Write the final html boundary
+              v_tmp := UTL_TCP.CRLF || '--' ||  v_boundary || '--' || UTL_TCP.CRLF;
+              DBMS_LOB.writeappend(v_body, length(v_tmp), v_tmp);
+            end;  
+          when  p_type = 'plain' then 
+            begin
+              -- process plain message
+              --write the header to the blob
+              DBMS_LOB.createtemporary(v_body,FALSE,10);
+              v_tmp := v_tmp || 'content-type: text/plain;' || UTL_TCP.CRLF || UTL_TCP.CRLF;
+              DBMS_LOB.writeappend(v_body, length(v_tmp), v_tmp);
+              
+              -- Write the message
+              DBMS_LOB.writeappend(v_body, length(p_message), p_message);
+            end;
+          else 
+              RAISE_APPLICATION_ERROR(-200010,'Wrong message type!');
+      end case;
+
+
+      -- Send the email in 1900 byte chunks to UTL_SMTP
+      v_offset  := 1;
+      v_amount := 1900;
+      
+      --open the data connection
+      UTL_SMTP.open_data(mail_conn);
+      
+      while v_offset < DBMS_LOB.getlength(v_body) loop
+         -- write chunk
+         UTL_SMTP.write_data(mail_conn, DBMS_LOB.substr(v_body,v_amount,v_offset));
+         --calculate new offset
+         v_offset  := v_offset + v_amount ;
+         -- calculate new amount
+         v_amount := least(1900,DBMS_LOB.getlength(v_body) - v_amount);
+      end loop;
+      
+      -- close data connection
+      UTL_SMTP.close_data(mail_conn);
+      -- free the LOB
+      DBMS_LOB.freetemporary(v_body);
+
+--      dbms_output.put_line('message mailed');
+      
+      -- closing the connection
+      UTL_SMTP.QUIT (mail_conn);
+--      dbms_output.put_line('closed connection');
+      
+   end sp_send_message;
+   
+   
+------------------------------------------------------------------------------------------------------------------------------------------
+--                                                    Wrappers
+------------------------------------------------------------------------------------------------------------------------------------------
+  --plain message
+  procedure sp_send_plain_message( p_to       varchar2
+                                 , p_subject  varchar2 
+                                 , p_message  varchar2
+                                 , p_cc       varchar2    default null                          
+                                 , p_bcc      varchar2    default null        
+                                 )
+  as
+  begin
+    sp_send_message( p_to=>p_to
+                   , p_cc=>p_cc
+                   , p_bcc=>p_bcc
+                   , p_subject=>p_subject
+                   , p_message=>p_message
+                   , p_type=>'plain'
+                   , p_from =>null
+                  );
+  end sp_send_plain_message;
+
+  --html message
+  procedure sp_send_html_message( p_to       varchar2
+                                 , p_subject  varchar2 
+                                 , p_message  varchar2
+                                 , p_cc       varchar2    default null                          
+                                 , p_bcc      varchar2    default null        
+                                 )
+  as
+  begin
+    sp_send_message( p_to=>p_to
+                   , p_cc=>p_cc
+                   , p_bcc=>p_bcc
+                   , p_subject=>p_subject
+                   , p_message=>p_message
+                   , p_type=>'html'
+                   , p_from =>null
+                  );
+  end sp_send_html_message;
+  
+end pkg_email;

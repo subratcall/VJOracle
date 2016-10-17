@@ -1,0 +1,95 @@
+create or replace procedure oraadmin.sp_lock_state_check(  p_threshold           integer         default 10                                -- lock maximum duration period in minutes
+                                                          , p_mailto              varchar2        default 'andrey.dekanovich@mkcorp.com'    -- default notification email
+                                                        )
+as
+  v_message     varchar2(4096)    := '';
+  v_flag        integer           := 0;
+begin
+    --
+    -- This procedure is created to check the locks in the database which are kept for more than p_threshold minutes 
+    -- and is locking other session
+    -- Created by Andrey Dekanovich
+    --
+    -- Changelog
+    --      10-May-2011           Created by andrey dekanovich.
+    --      17-Oct-2011           Added gv_* views and proper joins to monitor in the RAC environment.
+    -- 
+    -- (C) MK Corp
+    
+    -- Job running time check
+    
+    v_message:=   '<table border=1 > <style type=''text/css''> td{font-family:Arial; color:black; font-size:10pt;} </style>' 
+               || '<tr>' 
+                    || '<td>DURATION, MINS</td>'
+                    || '<td>BLOCKING SESSION</td><td>BLOCKING SESSION SQL</td>'
+                    || '<td>BLOCKED SESSION</td><td>BLOCKED SESSION SQL</td>'
+               || '</tr>';
+    
+    for p_lock_rec in         (   SELECT lock1.SID                              blocking_sid
+                                     , lock2.inst_id                          blocking_instance                              
+                                     , NVL(sess1.program,'')                  blocking_program
+                                     , NVL(sess1.machine,'')                  blocking_machine
+                                     , NVL(sess1.osuser,'')                   blocking_user
+                                     , nvl(sql1.sql_text,'UNKNOWN')           blocking_sql
+                                     , lock2.inst_id                          blocked_instance
+                                     , lock2.sid                              blocked_sid
+                                     , NVL(sess2.program,'')                  blocked_program
+                                     , NVL(sess2.machine,'')                  blocked_machine
+                                     , NVL(sess2.osuser,'')                   blocked_user
+                                     , ROUND(sess2.last_call_et/60)           duration_minutes
+                                     , NVL(sql2.sql_text,'')                  blocked_sql
+                                     , sql2.*
+                                  FROM sys.gv_$lock        lock1                 -- used insted v$lock view due to security restrictions
+                                  JOIN sys.gv_$lock        lock2                 -- used insted v$lock view due to security restrictions
+                                    ON lock1.BLOCK >0
+                                   AND lock2.id1=lock1.id1
+                                   AND lock2.id2=lock1.id2
+                                   AND lock2.BLOCK=0
+                                  JOIN sys.gv_$session          sess1
+                                    ON lock1.SID=sess1.SID
+                                   AND lock1.inst_id=sess1.inst_id
+                             LEFT JOIN sys.gv_$sql              sql1
+                                    ON sess1.sql_address=sql1.address
+                                   AND sess1.inst_id=sql1.inst_id
+                                   AND sql1.child_number=0
+                             LEFT JOIN sys.gv_$session          sess2
+                                    ON lock2.SID=sess2.SID
+                                   AND lock2.inst_id=sess2.inst_id
+                             LEFT JOIN sys.gv_$sql              sql2
+                                    ON sess2.sql_address=sql2.address
+                                   AND sess2.inst_id=sql2.inst_id
+                                   AND sql2.child_number=0
+                                 WHERE sess1.TYPE<>'BACKGROUND'
+                                   AND ROUND(sess2.last_call_et/60)>p_threshold
+                              ORDER BY duration_minutes DESC
+                                                        ) loop
+                                    
+        v_message:=v_message 
+                  || '<tr>' || chr(10) || chr(13)
+                  || '<td>'
+                  || TO_CHAR(p_lock_rec.duration_minutes)
+                  || '</td>' || chr(10) || chr(13) || '<td>'
+                  || 'SID: ' || p_lock_rec.blocking_sid
+                  || '( '    || p_lock_rec.blocking_user || '@' || p_lock_rec.blocking_machine || ') running program  ' 
+                  || p_lock_rec.blocking_program 
+                  || '</td>' || chr(10) || chr(13) || '<td>'
+                  || p_lock_rec.blocking_sql
+                  || '</td>' || chr(10) || chr(13) || '<td>'
+                  || 'SID: ' || p_lock_rec.blocked_sid
+                  || '( '    || p_lock_rec.blocked_user || '@' || p_lock_rec.blocked_machine || ') running program  ' 
+                  || p_lock_rec.blocked_program 
+                  || '</td>' || chr(10) || chr(13) || '<td>'
+                  || p_lock_rec.blocked_sql
+                  || '</td></tr>' || chr(10) || chr(13) ;
+               
+        v_flag:=1;                                    
+    end loop;
+      
+    v_message:=v_message||'</table>';
+    
+    if (v_flag!=0) then 
+      oraadmin.pkg_email.sp_send_html_message( p_mailto
+                                             , 'WARNING Session locked longer than  ' || TO_CHAR(p_threshold) ||' minutes detected!'
+                                             , v_message);
+    end if;                                         
+end;

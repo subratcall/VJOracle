@@ -1,0 +1,83 @@
+
+select event, p1, p2, p3 from v$session_wait where sid= &1
+/
+
+
+select wait_class, event, sid, state, wait_time, seconds_in_wait
+from v$session_wait
+order by wait_class, event, sid
+/
+
+select sid, event, time_waited, time_waited_micro
+  from v$session_event order by 3 desc ;
+select sid, event, time_waited, time_waited_micro
+  from v$session_event where sid=3 order by 3;
+
+select  
+   se.event,
+   sum(se.total_waits),
+   sum(se.total_timeouts),
+   sum(se.time_waited/100) time_waited
+from        
+   v$session_event  se, v$session       sess
+where sess.username = 'AGILE' and sess.sid = se.sid
+group by  se.event order by 2 DESC;
+
+select  
+   se.event,
+   sum(se.total_waits),
+   sum(se.total_timeouts),
+   sum(se.time_waited/100) time_waited
+from        
+   v$session_event  se, v$session       sess
+where sess.sid = se.sid
+group by  se.event order by 2 DESC;
+
+COLUMN wait_class format a20
+COLUMN name       format a30
+COLUMN time_secs  format 999,999,999,999.99
+COLUMN pct        format 99.99
+
+SELECT   
+   wait_class,
+   NAME,
+   ROUND (time_secs, 2) time_secs,
+   ROUND (time_secs * 100 / SUM (time_secs) OVER (), 2) pct
+FROM
+   (SELECT
+      n.wait_class,
+      e.event NAME,
+      e.time_waited / 100 time_secs
+    FROM
+      v$system_event e,
+      v$event_name n
+    WHERE
+       n.NAME = e.event AND n.wait_class <> 'Idle'
+    AND
+       time_waited > 0
+    UNION
+    SELECT
+      'CPU',
+      'server CPU',
+      SUM (VALUE / 1000000) time_secs
+    FROM
+      v$sys_time_model
+    WHERE
+      stat_name IN ('background cpu time', 'DB CPU'))
+ORDER BY
+   time_secs DESC;
+
+         select
+e.sid
+,e.event
+,e.time_waited
+,e.time_waited_micro
+from
+v$session_event e
+,v$session s
+where
+e.sid=s.sid
+and s.program like '%LGWR%'
+order by
+3
+;

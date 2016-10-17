@@ -1,0 +1,12 @@
+19:55:22 SQL> variable rc refcursor
+19:55:44 SQL> exec INET.SP_OE_GETITEMAVILINFO('003',:rc);
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.05
+19:57:23 SQL> print :rc
+
+no rows selected
+
+
+--RUN THIS FROM  sqldeveloper or db server command line

@@ -1,0 +1,27 @@
+SELECT SQL_ID
+ , Round ( elapsed_time )
+ FROM ( SELECT sql_id
+ , elapsed_time / 60000000 elapsed_time       -- CPU_TIME/EXECUTIONS,
+ , disk_reads
+ , executions
+ , first_load_time
+ , last_load_time
+ FROM v$sql
+ ORDER BY elapsed_time DESC )
+ WHERE ROWNUM < 5;
+ 
+ select 'The culprit SQL with SQL_ID 6hhbs09sb16j2 has topped CPU time'
+ from ( SELECT SQL_ID
+ , Round ( elapsed_time / executions )
+ , executions
+ FROM ( SELECT sql_id
+ , elapsed_time / 1000 elapsed_time
+ , disk_reads
+ , executions
+ , first_load_time
+ , last_load_time
+ FROM v$sql
+ ORDER BY elapsed_time DESC )
+ WHERE ROWNUM < 5 )
+ where SQL_ID = '6hhbs09sb16j2';
+ 

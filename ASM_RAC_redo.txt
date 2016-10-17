@@ -1,0 +1,118 @@
+ALTER DATABASE ADD LOGFILE THREAD 1
+ GROUP  9 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 10 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 11 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 12 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 13 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 14 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 15 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 16 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 17 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 18 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 19 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 20 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 21 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 22 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 23 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 24 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 25 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 26 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 27 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 28 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 29 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 30 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M;
+ 
+
+ALTER DATABASE ADD LOGFILE THREAD 2
+ GROUP 41 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 42 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 43 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 45 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 46 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 47 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 48 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 49 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 50 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 51 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 52 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 53 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 54 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 55 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 56 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 57 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 58 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 59 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 60 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 61 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 62 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 63 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 64 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 65 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 66 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 67 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 68 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 69 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 70 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M;
+ 
+ 
+ SQL>  select * from v$log;
+ 
+    GROUP#    THREAD#  SEQUENCE#      BYTES  BLOCKSIZE    MEMBERS ARCHIVED STATUS           FIRST_CHANGE# FIRST_TIME  NEXT_CHANGE# NEXT_TIME
+---------- ---------- ---------- ---------- ---------- ---------- -------- ---------------- ------------- ----------- ------------ -----------
+         1          1       4211  314572800        512          1 NO       INACTIVE           50973215668 15-Jun-12 8  50973215674 15-Jun-12 8
+         2          1       4212  314572800        512          1 NO       INACTIVE           50973215674 15-Jun-12 8  50973215681 15-Jun-12 8
+         3          1       4209  314572800        512          1 NO       INACTIVE           50973215627 15-Jun-12 8  50973215636 15-Jun-12 8
+         4          1       4210  314572800        512          1 NO       INACTIVE           50973215636 15-Jun-12 8  50973215668 15-Jun-12 8
+         5          2       7025  314572800        512          1 NO       INACTIVE           50970855959 14-Jun-12 1  50973215864 15-Jun-12 8
+         6          2       7022  314572800        512          1 NO       INACTIVE           50970217502 14-Jun-12 9  50970224790 14-Jun-12 9
+         7          2       7023  314572800        512          1 NO       INACTIVE           50970224790 14-Jun-12 9  50970235850 14-Jun-12 9
+         8          2       7024  314572800        512          1 NO       INACTIVE           50970235850 14-Jun-12 9  50970855959 14-Jun-12 1
+         9          1       4213  314572800        512          2 NO       INACTIVE           50973215681 15-Jun-12 8  50973215686 15-Jun-12 8
+        10          1       4214  314572800        512          2 NO       INACTIVE           50973215686 15-Jun-12 8  50973215692 15-Jun-12 8
+        
+SQL> select * from v$logfile;
+ 
+    GROUP# STATUS  TYPE    MEMBER                                                                           IS_RECOVERY_DEST_FILE
+---------- ------- ------- -------------------------------------------------------------------------------- ---------------------
+         1         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_1.257.785468603                               NO
+         2         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_2.258.785468605                               NO
+         3         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_3.259.785468605                               NO
+         4         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_4.260.785468607                               NO
+         5         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_5.267.785469733                               NO
+         6         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_6.268.785469735                               NO
+         7         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_7.269.785469735                               NO
+         8         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_8.270.785469737                               NO
+         9         ONLINE  +PRDPDW1DG/prdpdw1/onlinelog/group_9.559.786012273                               NO
+        
+ 
+alter database drop logfile group 1;
+alter database drop logfile group 2;
+alter database drop logfile group 3;
+alter database drop logfile group 4;
+alter database drop logfile group 5;
+alter database drop logfile group 6;
+alter database drop logfile group 7;
+alter database drop logfile group 8;
+
+--Check whether delete group file are removed from ASM DG. if not run following to delete from DG
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_1.257.785468603';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_2.258.785468605';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_3.259.785468605';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_4.260.785468607';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_5.267.785469733';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_6.268.785469735';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_7.269.785469735';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_8.270.785469737';
+ALTER DISKGROUP PRDPDW1DG DROP FILE '+PRDPDW1DG/prdpdw1/onlinelog/group_9.559.786012273';
+
+ALTER DATABASE ADD LOGFILE THREAD 1
+ GROUP  1 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 2 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 3 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 4 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 5 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 6 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 7 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M,
+ GROUP 8 ('+PRDPDW1DG','+PRDPDW1DG') SIZE 300M;
+ 
+ select * from v$log;

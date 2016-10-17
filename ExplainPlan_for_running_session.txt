@@ -1,0 +1,15 @@
+--Finding Explain Plan of a running session's query
+
+ 1) Identify Session.
+select sid,serial#,status from v$session where username='GBATTA';
+
+You may have multiple rows here because of many sessions using the same username.
+
+2) Once you get the SID, lets find out the SQL_ID, Child Number and SQL being executed.
+
+select b.sql_id,b.child_number,b.sql_text
+from v$session a, v$sql b
+where a.SQL_ADDRESS=b.ADDRESS
+and a.sid=&SID;
+
+SELECT * FROM table (DBMS_XPLAN.DISPLAY_CURSOR('sql_id','child_number' ));

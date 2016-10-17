@@ -1,0 +1,18 @@
+--create holding table for current stat
+execute DBMS_STATS.create_stat_table('ROIS','OLD_STATS');
+execute DBMS_STATS.create_stat_table('ROIS','SCHEMA_STATS');
+
+--Export existing stats into newly created table
+exec dbms_stats.export_table_stats('ROIS','ARCHIVE_DETAIL',null,'OLD_STATS',null,true,'ROIS');
+exec dbms_stats.export_table_stats('ROIS','ARCHIVE_HEADER',null,'OLD_STATS',null,true,'ROIS');
+EXEC DBMS_STATS.export_schema_stats('ROIS','SCHEMA_STATS',NULL,'ROIS');
+
+--Transfer this table to destination and import statistics from holding table  
+exec dbms_stats.import_table_stats('ROIS','ARCHIVE_DETAIL',null,'OLD_STATS',null,true,'ROIS')
+exec dbms_stats.import_table_stats('ROIS','ARCHIVE_HEADER',null,'OLD_STATS',null,true,'ROIS')
+EXEC DBMS_STATS.import_schema_stats('ROIS','SCHEMA_STATS',NULL,'ROIS');
+
+--drop stats tables
+EXEC DBMS_STATS.drop_stat_table('ROIS','OLD_STATS');
+EXEC DBMS_STATS.drop_stat_table('ROIS','SCHEMA_STATS');
+

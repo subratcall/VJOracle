@@ -1,0 +1,258 @@
+--ASM disk migration - Solaris
+
+SQL> select NAME,COMPATIBILITY,DATABASE_COMPATIBILITY from v$asm_diskgroup;
+
+NAME                      COMPATIBIL DATABASE_C
+------------------------- ---------- ----------
+LABCRSRDG                 11.2.0.0.0 10.1.0.0.0
+LABCRS                    11.2.0.0.0 10.1.0.0.0
+LABDW1DG                  11.2.0.0.0 10.1.0.0.0
+LABPDW1DG                 11.2.0.0.0 10.1.0.0.0
+TEST                      11.2.0.0.0 10.1.0.0.0
+
+--Check the status of OCR
+(uddcbdrac130) crs1120:/home/oracle $ ocrcheck
+Status of Oracle Cluster Registry is as follows :
+         Version                  :          3
+         Total space (kbytes)     :     262120
+         Used space (kbytes)      :       3168
+         Available space (kbytes) :     258952
+         ID                       : 2146355978
+         Device/File Name         :    +LABCRS
+                                    Device/File integrity check succeeded
+                                    Device/File not configured
+                                    Device/File not configured
+                                    Device/File not configured
+                                    Device/File not configured
+         Cluster registry integrity check succeeded
+         Logical corruption check bypassed due to non-privileged user
+
+--List OCR backups
+(uddcbdrac130) +ASM1:/home/oracle $ ocrconfig -showbackup
+uddcbdrac131     2012/10/10 13:02:44     /usr/oracle/product/grid_11203/cdata/labrac/backup00.ocr
+uddcbdrac131     2012/10/10 09:02:43     /usr/oracle/product/grid_11203/cdata/labrac/backup01.ocr
+uddcbdrac131     2012/10/10 05:02:41     /usr/oracle/product/grid_11203/cdata/labrac/backup02.ocr
+uddcbdrac131     2012/10/08 17:01:46     /usr/oracle/product/grid_11203/cdata/labrac/day.ocr
+uddcbdrac131     2012/09/27 12:58:31     /usr/oracle/product/grid_11203/cdata/labrac/week.ocr
+PROT-25: Manual backups for the Oracle Cluster Registry are not available
+
+
+root@uddcbdrac130:/usr/oracle/product/grid_11203/bin[502]# ./ocrconfig -manualbackup
+uddcbdrac131     2012/10/10 14:44:00     /usr/oracle/product/grid_11203/cdata/labrac/backup_20121010_144400.ocr
+
+root@uddcbdrac130:/usr/oracle/product/grid_11203/bin[504]# ./ocrconfig -showbackup
+uddcbdrac131     2012/10/10 13:02:44     /usr/oracle/product/grid_11203/cdata/labrac/backup00.ocr
+uddcbdrac131     2012/10/10 09:02:43     /usr/oracle/product/grid_11203/cdata/labrac/backup01.ocr
+uddcbdrac131     2012/10/10 05:02:41     /usr/oracle/product/grid_11203/cdata/labrac/backup02.ocr
+uddcbdrac131     2012/10/08 17:01:46     /usr/oracle/product/grid_11203/cdata/labrac/day.ocr
+uddcbdrac131     2012/09/27 12:58:31     /usr/oracle/product/grid_11203/cdata/labrac/week.ocr
+uddcbdrac131     2012/10/10 14:44:00     /usr/oracle/product/grid_11203/cdata/labrac/backup_20121010_144400.ocr
+
+root@uddcbdrac130:/usr/oracle/product/grid_11203/bin[506]# ./ocrconfig -showbackup manual
+uddcbdrac131     2012/10/10 14:44:00     /usr/oracle/product/grid_11203/cdata/labrac/backup_20121010_144400.ocr
+
+--list Voting Disk information 
+(uddcbdrac130) crs1120:/home/oracle $ crsctl query css votedisk
+##  STATE    File Universal Id                File Name Disk group
+--  -----    -----------------                --------- ---------
+ 1. ONLINE   7c2a5d0748424f8abf03b058234be7c0 (/dev/rdsk/c4t50002AC99DFE08B2d0s6) [LABCRS]
+ 2. ONLINE   99a90962539b4f72bfe7722e7f22a091 (/dev/rdsk/c4t50002AC99DFF08B2d0s6) [LABCRS]
+ 3. ONLINE   413b9bf717fc4ffbbfa47738cc411989 (/dev/rdsk/c4t50002AC99E0008B2d0s6) [LABCRS]
+Located 3 voting disk(s).
+
+--List Disks used in a DG	
+(uddcbdrac130) +ASM1:/home/oracle $ asmcmd lsdsk -p  -G LABCRS
+Group_Num  Disk_Num      Incarn  Mount_Stat  Header_Stat  Mode_Stat  State   Path
+        2         0  4042283079  CACHED      MEMBER       ONLINE     NORMAL  /dev/rdsk/c4t50002AC99DFE08B2d0s6
+        2         1  4042283081  CACHED      MEMBER       ONLINE     NORMAL  /dev/rdsk/c4t50002AC99DFF08B2d0s6
+        2         2  4042283080  CACHED      MEMBER       ONLINE     NORMAL  /dev/rdsk/c4t50002AC99E0008B2d0s6
+(uddcbdrac130) +ASM1:/home/oracle $  asmcmd lsdsk -p  -G LABCRSRDG
+Group_Num  Disk_Num      Incarn  Mount_Stat  Header_Stat  Mode_Stat  State   Path
+        1         0  4042283078  CACHED      MEMBER       ONLINE     NORMAL  /dev/rdsk/c4t50002AC99E0108B2d0s6
+	
+(uddcbdrac130) +ASM1:/home/oracle $ asmcmd lsdsk  --discovery -G LABCRS
+Path
+/dev/rdsk/c4t50002AC99DFE08B2d0s6
+/dev/rdsk/c4t50002AC99DFF08B2d0s6
+/dev/rdsk/c4t50002AC99E0008B2d0s6
+
+-- Show available disk candidates to add to ASM diskgroup
+set heading off
+select path from v$asm_disk
+minus
+select a.path from v$asm_disk a,v$asm_diskgroup b where a.group_number = b.group_number order by path;
+
+-- Find specific Disk in asm disk listing
+select path,name from v$asm_disk where path='/dev/rdsk/c4t50002AC0003416E8d0s6';
+
+Change Newly prsented Luns ownership to Oracle
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003A16E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003916E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003816E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003716E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003616E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003516E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003416E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003316E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003216E8d0s6
+chown oracle:oinstall  /dev/rdsk/c4t50002AC0003116E8d0s6
+
+DB Disk:
+chmod 660  /dev/rdsk/c4t50002AC0003A16E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003916E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003816E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003716E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003616E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003516E8d0s6
+
+CRS:
+chmod 660  /dev/rdsk/c4t50002AC0003416E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003316E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003216E8d0s6
+chmod 660  /dev/rdsk/c4t50002AC0003116E8d0s6
+
+/admin/sys/bin/format_label.csh c4t50002AC0003416E8d0   -- Format Disk  -- Done by Unix Admin
+
+prtvtoc /dev/rdsk/c4t50002AC0003416E8d0s2  -- Disk info
+mpathadm list LU  -- shows multipathing info
+mpathadm list LU |grep /dev/rdsk/c4t50002AC0003416E8d0s2
+
+ 
+--connect as sysasm to do admin tasks on ASM 
+sqlplus / as sysasm
+
+LABCRS
+asmcmd lsdsk  --discovery -G LABCRS
+/dev/rdsk/c4t50002AC99DFE08B2d0s6
+/dev/rdsk/c4t50002AC99DFF08B2d0s6
+/dev/rdsk/c4t50002AC99E0008B2d0s6
+
+alter diskgroup LABCRS add disk '/dev/rdsk/c4t50002AC0003116E8d0s6’;
+alter diskgroup LABCRS add disk '/dev/rdsk/c4t50002AC0003216E8d0s6’;
+alter diskgroup LABCRS add disk '/dev/rdsk/c4t50002AC0003316E8d0s6’;
+
+asmcmd lsdsk  --discovery -G LABCRS
+/dev/rdsk/c4t50002AC0003116E8d0s6
+/dev/rdsk/c4t50002AC0003216E8d0s6
+/dev/rdsk/c4t50002AC0003316E8d0s6
+/dev/rdsk/c4t50002AC99DFE08B2d0s6
+/dev/rdsk/c4t50002AC99DFF08B2d0s6
+/dev/rdsk/c4t50002AC99E0008B2d0s6
+		 
+alter diskgroup LABCRS drop disk 'LABCRS_0000';
+alter diskgroup LABCRS drop disk 'LABCRS_0001';
+alter diskgroup LABCRS drop disk 'LABCRS_0002';
+
+asmcmd lsdsk  --discovery -G LABCRS
+/dev/rdsk/c4t50002AC0003116E8d0s6
+/dev/rdsk/c4t50002AC0003216E8d0s6
+/dev/rdsk/c4t50002AC0003316E8d0s6
+
+/admin/sys/bin/format_label.csh c4t50002AC0003A16E8d0
+ chown oracle:oinstall /dev/rdsk/c4t50002AC0003A16E8d0s6
+ chmod 660 /dev/rdsk/c4t50002AC0003A16E8d0s6
+ prtvtoc
+ mpathadm list LU
+mpathadm list LU |grep /dev/rdsk/c4t50002AC0003A16E8d0s6
+
+LABCRSRDG
+(uddcbdrac130) +ASM1:/home/oracle $ asmcmd lsdsk  --discovery -G LABCRSRDG
+/dev/rdsk/c4t50002AC99E0108B2d0s6
+
+alter diskgroup LABCRSRDG add  disk '/dev/rdsk/c4t50002AC0003416E8d0s6'
+
+asmcmd lsdsk  --discovery -G LABCRSRDG
+/dev/rdsk/c4t50002AC0003416E8d0s6
+/dev/rdsk/c4t50002AC99E0108B2d0s6
+alter diskgroup LABCRSRDG drop disk 'LABCRSRDG_0000';
+
+asmcmd lsdsk  --discovery -G LABCRSRDG
+/dev/rdsk/c4t50002AC0003416E8d0s6
+
+
+--Get Disk name using following query
+COLUMN PATH FORMAT A33
+COLUMN NAME FORMAT A20
+column group_number format a4
+column DISK_NUMBER format a4
+column GROUP_NAME format a10
+column DISK_NAME format a15
+set linesize 120
+set pagesize 0
+select g.group_number Grp#,g.name Group_name,d.disk_number Dsk#,d.name Disk_name,d.path   from V$asm_disk_stat d, V$asm_diskgroup g where g.group_number=d.group_number order by g.group_number;
+
+alter diskgroup LABCRSRDG drop disk 'Disk_name';
+
+col name format a15
+col path format a20
+select GROUP_NUMBER,DISK_NUMBER,MOUNT_STATUS,HEADER_STATUS,NAME,PATH from v$asm_disk;
+ 
+
+LABDW1DG
+asmcmd lsdsk  --discovery -G LABDW1DG
+/dev/rdsk/c4t50002AC99E0208B2d0s6
+/dev/rdsk/c4t50002AC99E0308B2d0s6
+/dev/rdsk/c4t50002AC99E0408B2d0s6
+/dev/rdsk/c4t50002AC99E0508B2d0s6
+/dev/rdsk/c4t50002AC99E0608B2d0s6
+
+alter diskgroup LABDW1DG add disk '/dev/rdsk/c4t50002AC0003A16E8d0s6';
+alter diskgroup LABDW1DG add disk '/dev/rdsk/c4t50002AC0003816E8d0s6';
+alter diskgroup LABDW1DG add disk '/dev/rdsk/c4t50002AC0003916E8d0s6';
+
+asmcmd lsdsk  --discovery -G LABDW1DG
+/dev/rdsk/c4t50002AC0003816E8d0s6
+/dev/rdsk/c4t50002AC0003916E8d0s6
+/dev/rdsk/c4t50002AC0003A16E8d0s6
+/dev/rdsk/c4t50002AC99E0208B2d0s6
+/dev/rdsk/c4t50002AC99E0308B2d0s6
+/dev/rdsk/c4t50002AC99E0408B2d0s6
+/dev/rdsk/c4t50002AC99E0508B2d0s6
+/dev/rdsk/c4t50002AC99E0608B2d0s6
+
+alter diskgroup LABDW1DG drop disk 'LABDW1DG_0000';
+alter diskgroup LABDW1DG drop disk 'LABDW1DG_0001';
+alter diskgroup LABDW1DG drop disk 'LABDW1DG_0002';
+alter diskgroup LABDW1DG drop disk 'LABDW1DG_0003';
+alter diskgroup LABDW1DG drop disk 'LABDW1DG_0004';
+
+LABPDW1DG
+alter diskgroup LABPDW1DG add disk '/dev/rdsk/c4t50002AC0003516E8d0s6';
+alter diskgroup LABPDW1DG add disk '/dev/rdsk/c4t50002AC0003616E8d0s6';
+alter diskgroup LABPDW1DG add disk '/dev/rdsk/c4t50002AC0003716E8d0s6';
+
+alter diskgroup LABPDW1DG drop disk 'LABPDW1DG_0000';
+alter diskgroup LABPDW1DG drop disk 'LABPDW1DG_0001';
+alter diskgroup LABPDW1DG drop disk 'LABPDW1DG_0002';
+alter diskgroup LABPDW1DG drop disk 'LABPDW1DG_0003’;
+alter diskgroup LABPDW1DG drop disk 'LABPDW1DG_0004';
+
+TEST
+asmcmd lsdsk  --discovery -G TEST
+/dev/rdsk/c4t50002AC99E0C08B2d0s6
+/dev/rdsk/c4t50002AC99E0D08B2d0s6
+
+
+Linux:
+/etc/init.d/oracleasm listdisks 
+ cat /etc/sysconfig/oracleasm
+ ls -l /dev/oracleasm/disks
+ ls -l /etc/sysconfig/oracleasm*
+ select inst_id,HEADER_STATUS,STATE,NAME,path,LIBRARY from gv$asm_disk;
+    if Header_Status is 'UNKNOWN' modify /etc/sysconfig/oracleasm file for ASM_SCANORDER and ASM_SCAMEXCLUDE parameters values and restart ASMLib
+	/etc/sysconfig/oracleasm 
+	# ORACLEASM_SCANORDER: Matching patterns to order disk scanning
+	ORACLEASM_SCANORDER="dm-"
+
+	# ORACLEASM_SCANEXCLUDE: Matching patterns to exclude disks from scan
+	ORACLEASM_SCANEXCLUDE="sd"
+	
+alter diskgroup LABDG add disk 'ORCL:ASM4';
+alter diskgroup LABDG add disk 'ORCL:ASM5';
+alter diskgroup LABDG add disk 'ORCL:ASM6';
+
+alter diskgroup LABDG drop disk 'ASM1';
+alter diskgroup LABDG drop disk 'ASM2';
+alter diskgroup LABDG drop disk 'ASM3';
+
+select * from v$asm_operation;

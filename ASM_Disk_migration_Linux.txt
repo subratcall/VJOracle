@@ -1,0 +1,398 @@
+--ASM disk migration - Linux
+
+/etc/init.d/oracleasm listdidks
+ASM01
+ASM02
+ASM03
+ASM04
+ASM05
+ASM06
+ASM10
+ASM7
+ASM8
+ASM9
+ASMOCRVOT1
+ASMOCRVOT10
+ASMOCRVOT11
+ASMOCRVOT12
+ASMOCRVOT2
+ASMOCRVOT3
+ASMOCRVOT4
+ASMOCRVOT5
+ASMOCRVOT6
+ASMOCRVOT7
+ASMOCRVOT8
+ASMOCRVOT9
+
+
+(uadcbdrac77) +ASM2:/usr/oracle/admin/+ASM2/bdump $  ls -l /etc/sysconfig/oracleasm*
+lrwxrwxrwx 1 root root  24 Feb  1 15:02 /etc/sysconfig/oracleasm -> oracleasm-_dev_oracleasm
+-rw-r--r-- 1 root root 828 Jun 21 10:44 /etc/sysconfig/oracleasm.06212013.ORIG
+-rw-r--r-- 1 root root 828 Jun 21 10:47 /etc/sysconfig/oracleasm-_dev_oracleasm
+-rw-r--r-- 1 root root 972 Jun 21 10:47 /etc/sysconfig/oracleasm-_dev_oracleasm.06212013-PostUpgrade
+-rw-r--r-- 1 root root 772 Feb  5 21:07 /etc/sysconfig/oracleasm.rpmnew
+
+$ for i in `oracleasm listdisks`; do oracleasm querydisk $i; done
+Disk "ASM01" is a valid ASM disk
+Disk "ASM02" is a valid ASM disk
+Disk "ASM03" is a valid ASM disk
+Disk "ASM04" is a valid ASM disk
+Disk "ASM05" is a valid ASM disk
+Disk "ASM06" is a valid ASM disk
+Disk "ASM10" is a valid ASM disk
+Disk "ASM7" is a valid ASM disk
+Disk "ASM8" is a valid ASM disk
+Disk "ASM9" is a valid ASM disk
+Disk "ASMOCRVOT1" is a valid ASM disk
+Disk "ASMOCRVOT10" is a valid ASM disk
+Disk "ASMOCRVOT11" is a valid ASM disk
+Disk "ASMOCRVOT12" is a valid ASM disk
+Disk "ASMOCRVOT2" is a valid ASM disk
+Disk "ASMOCRVOT3" is a valid ASM disk
+Disk "ASMOCRVOT4" is a valid ASM disk
+Disk "ASMOCRVOT5" is a valid ASM disk
+Disk "ASMOCRVOT6" is a valid ASM disk
+Disk "ASMOCRVOT7" is a valid ASM disk
+Disk "ASMOCRVOT8" is a valid ASM disk
+Disk "ASMOCRVOT9" is a valid ASM disk
+
+$  ls -l /dev/oracleasm/disks
+total 0
+brw-rw---- 1 oracle dba 253, 42 Jul  1 09:36 ASM01
+brw-rw---- 1 oracle dba 253, 43 Jul  1 09:36 ASM02
+brw-rw---- 1 oracle dba 253, 39 Jul  1 09:36 ASM03
+brw-rw---- 1 oracle dba 253, 33 Jul  1 09:36 ASM04
+brw-rw---- 1 oracle dba 253, 50 Jul  1 09:36 ASM05
+brw-rw---- 1 oracle dba 253, 31 Jul  1 09:36 ASM06
+brw-rw---- 1 oracle dba 253, 48 Jul  1 09:36 ASM10
+brw-rw---- 1 oracle dba 253, 44 Jul  1 09:36 ASM7
+brw-rw---- 1 oracle dba 253, 46 Jul  1 09:36 ASM8
+brw-rw---- 1 oracle dba 253, 45 Jul  1 09:36 ASM9
+brw-rw---- 1 oracle dba 253, 41 Jul  1 09:36 ASMOCRVOT1
+brw-rw---- 1 oracle dba 253, 35 Jul  1 09:36 ASMOCRVOT10
+brw-rw---- 1 oracle dba 253, 29 Jul  1 09:36 ASMOCRVOT11
+brw-rw---- 1 oracle dba 253, 32 Jul  1 09:36 ASMOCRVOT12
+brw-rw---- 1 oracle dba 253, 37 Jul  1 09:36 ASMOCRVOT2
+brw-rw---- 1 oracle dba 253, 38 Jul  1 09:36 ASMOCRVOT3
+brw-rw---- 1 oracle dba 253, 49 Jul  1 09:36 ASMOCRVOT4
+brw-rw---- 1 oracle dba 253, 36 Jul  1 09:36 ASMOCRVOT5
+brw-rw---- 1 oracle dba 253, 40 Jul  1 09:36 ASMOCRVOT6
+brw-rw---- 1 oracle dba 253, 30 Jul  1 09:36 ASMOCRVOT7
+brw-rw---- 1 oracle dba 253, 34 Jul  1 09:36 ASMOCRVOT8
+brw-rw---- 1 oracle dba 253, 47 Jul  1 09:36 ASMOCRVOT9
+
+# /sbin/multipath -ll |grep 3PARdata
+ASM04 (350002ac001161363) dm-25 3PARdata,VV
+ASMOCRVOT2 (350002ac001111363) dm-20 3PARdata,VV
+ASM03 (350002ac0011d1363) dm-28 3PARdata,VV
+ASMOCRVOT1 (350002ac001101363) dm-19 3PARdata,VV
+ASM02 (350002ac0011c1363) dm-27 3PARdata,VV
+ASM01 (350002ac0011b1363) dm-26 3PARdata,VV
+ASMOCRVOT6 (350002ac001151363) dm-24 3PARdata,VV
+ASMOCRVOT5 (350002ac001141363) dm-23 3PARdata,VV
+ASMOCRVOT4 (350002ac001131363) dm-22 3PARdata,VV
+ASMOCRVOT3 (350002ac001121363) dm-21 3PARdata,VV
+# /sbin/multipath -ll |grep HITACHI
+ASM9 (360060e8016017f000001017f00004503) dm-16 HITACHI,OPEN-V
+ASM8 (360060e8016017f000001017f00004502) dm-15 HITACHI,OPEN-V
+ASM7 (360060e8016017f000001017f00004501) dm-14 HITACHI,OPEN-V
+ASMOCRVOT9 (360060e8016017f000001017f00004517) dm-10 HITACHI,OPEN-V
+ASMOCRVOT12 (360060e8016017f000001017f0000451a) dm-13 HITACHI,OPEN-V
+ASMOCRVOT8 (360060e8016017f000001017f00004516) dm-9 HITACHI,OPEN-V
+ASMOCRVOT11 (360060e8016017f000001017f00004519) dm-12 HITACHI,OPEN-V
+ASMOCRVOT7 (360060e8016017f000001017f00004515) dm-8 HITACHI,OPEN-V
+ASMOCRVOT10 (360060e8016017f000001017f00004518) dm-11 HITACHI,OPEN-V
+ASM10 (360060e8016017f000001017f00004504) dm-17 HITACHI,OPEN-V
+ASM06 (360060e8016017f000001017f00004506) dm-7 HITACHI,OPEN-V
+ASM05 (360060e8016017f000001017f00004505) dm-18 HITACHI,OPEN-V
+#
+
+
+
+
+SQL> select NAME,COMPATIBILITY,DATABASE_COMPATIBILITY from v$asm_diskgroup;
+
+NAME                      COMPATIBIL DATABASE_C
+------------------------- ---------- ----------
+LABCRSRDG                 11.2.0.0.0 10.1.0.0.0
+LABCRS                    11.2.0.0.0 10.1.0.0.0
+LABDW1DG                  11.2.0.0.0 10.1.0.0.0
+LABPDW1DG                 11.2.0.0.0 10.1.0.0.0
+TEST                      11.2.0.0.0 10.1.0.0.0
+
+$cat /etc/sysconfig/oracleasm
+#
+# This is a configuration file for automatic loading of the Oracle
+# Automatic Storage Management library kernel driver.  It is generated
+# By running /etc/init.d/oracleasm configure.  Please use that method
+# to modify this file
+#
+
+# ORACLEASM_ENABELED: 'true' means to load the driver on boot.
+ORACLEASM_ENABLED=true
+
+# ORACLEASM_UID: Default user owning the /dev/oracleasm mount point.
+ORACLEASM_UID=oracle
+
+# ORACLEASM_GID: Default group owning the /dev/oracleasm mount point.
+ORACLEASM_GID=dba
+
+# ORACLEASM_SCANBOOT: 'true' means scan for ASM disks on boot.
+ORACLEASM_SCANBOOT=true
+
+# ORACLEASM_SCANORDER: Matching patterns to order disk scanning
+#ORACLEASM_SCANORDER=""
+ORACLEASM_SCANORDER="dm"
+
+# ORACLEASM_SCANEXCLUDE: Matching patterns to exclude disks from scan
+#ORACLEASM_SCANEXCLUDE=""
+ORACLEASM_SCANEXCLUDE="sd"
+
+SQL> select inst_id,HEADER_STATUS,STATE,NAME,path,LIBRARY from gv$asm_disk;
+
+   if Header_Status is 'UNKNOWN' modify /etc/sysconfig/oracleasm file for ASM_SCANORDER and ASM_SCAMEXCLUDE parameters values and restart ASMLib
+	/etc/sysconfig/oracleasm 
+	# ORACLEASM_SCANORDER: Matching patterns to order disk scanning
+	ORACLEASM_SCANORDER="dm-"
+
+	# ORACLEASM_SCANEXCLUDE: Matching patterns to exclude disks from scan
+	ORACLEASM_SCANEXCLUDE="sd"
+
+
+--Check the status of OCR
+# ./ocrcheck
+Status of Oracle Cluster Registry is as follows :
+         Version                  :          3
+         Total space (kbytes)     :     262120
+         Used space (kbytes)      :       3248
+         Available space (kbytes) :     258872
+         ID                       : 1518392892
+         Device/File Name         : +ADCDEVCRS
+                                    Device/File integrity check succeeded
+
+                                    Device/File not configured
+
+                                    Device/File not configured
+
+                                    Device/File not configured
+
+                                    Device/File not configured
+
+         Cluster registry integrity check succeeded
+
+         Logical corruption check succeeded
+
+# crsctl query css votedisk
+ksh: crsctl: not found [No such file or directory]
+# ./crsctl query css votedisk
+##  STATE    File Universal Id                File Name Disk group
+--  -----    -----------------                --------- ---------
+ 1. ONLINE   99d3512b650d4fa6bf664c4d12e5a833 (ORCL:ASMOCRVOT1) [ADCDEVCRS]
+ 2. ONLINE   60364e8ee3e74f33bf15c65b67fec8bd (ORCL:ASMOCRVOT4) [ADCDEVCRS]
+ 3. ONLINE   1dc751e236314f50bf9bf584184b630d (ORCL:ASMOCRVOT5) [ADCDEVCRS]
+Located 3 voting disk(s).
+#
+
+
+
+--List OCR backups
+# ./ocrconfig -showbackup
+
+uadcbdrac76     2013/07/02 05:50:54     /usr/oracle/product/grid_11203/cdata/devadc/backup00.ocr
+uadcbdrac76     2013/07/02 01:50:54     /usr/oracle/product/grid_11203/cdata/devadc/backup01.ocr
+uadcbdrac76     2013/07/01 21:50:54     /usr/oracle/product/grid_11203/cdata/devadc/backup02.ocr
+uadcbdrac76     2013/07/01 13:50:52     /usr/oracle/product/grid_11203/cdata/devadc/day.ocr
+uadcbdrac76     2013/06/23 14:55:19     /usr/oracle/product/grid_11203/cdata/devadc/week.ocr
+uadcbdrac77     2013/05/30 07:51:01     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130530_075101.ocr
+uadcbdrac76     2013/03/15 11:20:34     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_112034.ocr
+uadcbdrac76     2013/03/15 10:59:28     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_105928.ocr
+
+
+
+# ./ocrconfig -manualbackup
+uadcbdrac76     2013/07/02 09:41:13     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130702_094113.ocr
+uadcbdrac76     2013/07/02 09:41:03     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130702_094103.ocr
+uadcbdrac77     2013/05/30 07:51:01     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130530_075101.ocr
+uadcbdrac76     2013/03/15 11:20:34     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_112034.ocr
+uadcbdrac76     2013/03/15 10:59:28     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_105928.ocr
+
+
+# ./ocrconfig -showbackup manual
+uadcbdrac76     2013/07/02 09:41:13     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130702_094113.ocr
+uadcbdrac76     2013/07/02 09:41:03     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130702_094103.ocr
+uadcbdrac77     2013/05/30 07:51:01     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130530_075101.ocr
+uadcbdrac76     2013/03/15 11:20:34     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_112034.ocr
+uadcbdrac76     2013/03/15 10:59:28     /usr/oracle/product/grid_11203/cdata/devadc/backup_20130315_105928.ocr
+
+
+--List Disks used in a DG	
+ $ asmcmd lsdsk -k -G DEVMSAF
+Total_MB  Free_MB   OS_MB  Name   Failgroup  Failgroup_Type  Library                                               Label  UDID  Product  Redund   Path
+  153598    27962  153598  ASM01  ASM01      REGULAR         ASM Library - Generic Linux, version 2.0.4 (KABI_V2)  ASM01                 UNKNOWN  ORCL:ASM01
+
+$asmcmd lsdsk --discovery -G DEVMSAF
+Path
+ORCL:ASM01      
+
+
+-- Show available disk candidates to add to ASM diskgroup
+SQL> set heading off
+select path from v$asm_disk
+minus
+select a.path from v$asm_disk a,v$asm_diskgroup b where a.group_number = b.group_number order by path;
+SQL>   2    3
+ORCL:ASM02
+ORCL:ASM03
+ORCL:ASM04
+ORCL:ASM10
+ORCL:ASM7
+ORCL:ASM8
+ORCL:ASM9
+ORCL:ASMOCRVOT1
+ORCL:ASMOCRVOT12
+ORCL:ASMOCRVOT2
+ORCL:ASMOCRVOT3
+ORCL:ASMOCRVOT4
+ORCL:ASMOCRVOT6
+
+13 rows selected.
+
+
+$ asmcmd lsdsk  --discovery -G DEVMSAF
+Path
+ORCL:ASM01
+
+
+-- Find specific Disk in asm disk listing
+sqlplus / as sysasm
+SQL> select path,name from v$asm_disk where path='ORCL:ASM7';
+
+ORCL:ASM7
+
+--Add new disk to diskgroup
+
+SQL> alter diskgroup DEVMSAF add disk 'ORCL:ASM7' NAME ASM7;
+
+Diskgroup altered.
+
+--List disks from diskgroup
+$ asmcmd lsdsk  --discovery -G DEVMSAF
+Path
+ORCL:ASM01
+ORCL:ASM7
+
+
+--Check Disk rebalance status
+SQL> select GROUP_NUMBER,OPERATION,STATE,SOFAR,EST_MINUTES  from v$asm_operation;
+
+GROUP_NUMBER OPERA STAT      SOFAR EST_MINUTES
+------------ ----- ---- ---------- -----------
+           2 REBAL RUN       19259           7
+
+SQL> /
+
+GROUP_NUMBER OPERA STAT      SOFAR EST_MINUTES
+------------ ----- ---- ---------- -----------
+           2 REBAL RUN       61641           0
+
+
+--Drop disk from Disk group
+SQL> alter diskgroup DEVMSAF drop disk ASM01;
+
+Diskgroup altered.
+
+-following command will still show disk in diskgroup as disk will be dropped after completing rebalance operation
+$ asmcmd lsdsk  --discovery -G DEVMSAF
+Path
+ORCL:ASM01
+ORCL:ASM7
+
+SQL> select GROUP_NUMBER,OPERATION,STATE,SOFAR,EST_MINUTES  from v$asm_operation;
+
+GROUP_NUMBER OPERA STAT      SOFAR EST_MINUTES
+------------ ----- ---- ---------- -----------
+           2 REBAL RUN        6150          11
+
+SQL> /
+
+no rows selected
+
+
+
+$  asmcmd lsdsk  --discovery -G DEVMSAF
+Path
+ORCL:ASM7
+
+
+
+--Get Disk name using following query
+COLUMN PATH FORMAT A33
+COLUMN NAME FORMAT A20
+column group_number format a4
+column DISK_NUMBER format a4
+column GROUP_NAME format a10
+column DISK_NAME format a15
+set linesize 120
+set pagesize 0
+select g.group_number Grp#,g.name Group_name,d.disk_number Dsk#,d.name Disk_name,d.path   from V$asm_disk_stat d, V$asm_diskgroup g where g.group_number=d.group_number order by g.group_number;
+
+         1 ADCDEVCRS           0 _DROPPED_0000_ADCDEVCRS
+         1 ADCDEVCRS           3 _DROPPED_0003_ADCDEVCRS
+         1 ADCDEVCRS           4 ASMOCRVOT5      ORCL:ASMOCRVOT5
+         2 DEVMSAF             4 ASM7            ORCL:ASM7
+         3 ECOMEX              0 ASM05           ORCL:ASM05
+         4 DEVCRS              1 ASMOCRVOT11     ORCL:ASMOCRVOT11
+         4 DEVCRS              4 ASMOCRVOT9      ORCL:ASMOCRVOT9
+         4 DEVCRS              0 ASMOCRVOT10     ORCL:ASMOCRVOT10
+         4 DEVCRS              2 ASMOCRVOT7      ORCL:ASMOCRVOT7
+         4 DEVCRS              3 ASMOCRVOT8      ORCL:ASMOCRVOT8
+         5 CFGCOMEX            0 ASM06           ORCL:ASM06
+
+11 rows selected.
+
+
+
+
+$ asmcmd lsdg
+State    Type    Rebal  Sector  Block       AU  Total_MB  Free_MB  Req_mir_free_MB  Usable_file_MB  Offline_disks  Voting_files  Name
+MOUNTED  HIGH    N         512   4096  1048576      2047     1683                0             561              2             Y  ADCDEVCRS/
+MOUNTED  EXTERN  N         512   4096  1048576    204797   171047                0          171047              0             N  CFGCOMEX/
+MOUNTED  HIGH    N         512   4096  1048576     10740     9484             4296            1729              0             Y  DEVCRS/
+MOUNTED  EXTERN  N         512   4096  1048576    154617    28981                0           28981              0             N  DEVMSAF/
+MOUNTED  EXTERN  N         512   4096  1048576    204797   182219                0          182219              0             N  ECOMEX/
+
+
+
+(uadcbdrac76) +ASM1:/ora_ext/exp/devmsaf1/exp $ asmcmd lsdsk  --discovery -G DEVMSAF
+Path
+ORCL:ASM7
+(uadcbdrac76) +ASM1:/ora_ext/exp/devmsaf1/exp $  asmcmd lsdsk  --discovery -G ECOMEX
+Path
+ORCL:ASM05
+(uadcbdrac76) +ASM1:/ora_ext/exp/devmsaf1/exp $  asmcmd lsdsk  --discovery -G DEVCRS
+Path
+ORCL:ASMOCRVOT10
+ORCL:ASMOCRVOT11
+ORCL:ASMOCRVOT7
+ORCL:ASMOCRVOT8
+ORCL:ASMOCRVOT9
+(uadcbdrac76) +ASM1:/ora_ext/exp/devmsaf1/exp $  asmcmd lsdsk  --discovery -G CFGCOMEX
+Path
+ORCL:ASM06
+(uadcbdrac76) +ASM1:/ora_ext/exp/devmsaf1/exp $  asmcmd lsdsk  --discovery -G ADCDEVCRS
+Path
+ORCL:ASMOCRVOT5
+
+SQL> SELECT dg.name AS diskgroup, SUBSTR(c.instance_name,1,12) AS instance,
+  2          SUBSTR(c.db_name,1,12) AS dbname, SUBSTR(c.SOFTWARE_VERSION,1,12) AS software,
+  3          SUBSTR(c.COMPATIBLE_VERSION,1,12) AS compatible
+  4          FROM V$ASM_DISKGROUP dg, V$ASM_CLIENT c
+  5          WHERE  dg.group_number = c.group_number;
+
+DISKGROUP                      INSTANCE     DBNAME   SOFTWARE     COMPATIBLE
+------------------------------ ------------ -------- ------------ ------------
+DEVMSAF                        devmsaf11    devmsaf1 11.2.0.3.0   11.2.0.0.0
+ECOMEX                         devcomex1    devcomex 11.2.0.3.0   11.2.0.0.0
+DEVCRS                         +ASM1        +ASM     11.2.0.3.0   11.2.0.3.0
+CFGCOMEX                       cfgcomex1    cfgcomex 11.2.0.3.0   11.2.0.0.0
+

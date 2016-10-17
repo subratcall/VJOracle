@@ -1,0 +1,127 @@
+select sid, serial# from v$session s, dba_datapump_sessions d where s.saddr = d.saddr;
+
+select sid, serial#, sofar, totalwork from v$session_longops where opname = 'CASES_EXPORT' and sofar != totalwork;
+
+--Remove Orphan Tables
+SELECT owner_name, job_name, operation, job_mode, state, attached_sessions FROM dba_datapump_jobs 
+WHERE job_name NOT LIKE 'BIN$%' ORDER BY 1,2; 
+
+select 'drop table oracle.'||job_name ||';' FROM dba_datapump_jobs WHERE job_name NOT LIKE 'BIN$%';
+
+----Data pump job monitoring:
+select NAME,STATUS, TIMEOUT, ERROR_NUMBER, ERROR_MSG from DBA_RESUMABLE;
+select OBJECT_NAME,OBJECT_TYPE,REASON,SUGGESTED_ACTIONfrom DBA_OUTSTANDING_ALERTS;
+select username,opname,target_desc,sofar,totalwork,message from V$SESSION_LONGOPS;
+
+SELECT * FROM DBA_DATAPUMP_SESSIONS;
+
+--Find data pump file info
+SET serveroutput on SIZE 1000000
+exec show_dumpfile_info(p_dir=> 'DUMP_DIR', p_file=> 'dump1.dmp');
+
+----Kill running datapump jobs
+expdp system ATTACH=SYS_EXPORT_SCHEMA_01
+Job: EXP_FULL
+or
+STOP_JOB=IMMEDIATE
+
+----How To Cleanup Orphaned DataPump Jobs In DBA_DATAPUMP_JOBS ? [ID 336014.1]
+%sqlplus /nolog
+CONNECT / as sysdba
+SET lines 200
+COL owner_name FORMAT a10;
+COL job_name FORMAT a20
+COL state FORMAT a11 
+COL operation LIKE state
+COL job_mode LIKE state
+
+-- locate Data Pump jobs:
+SELECT owner_name, job_name, operation, job_mode,
+state, attached_sessions
+FROM dba_datapump_jobs
+WHERE job_name NOT LIKE 'BIN$%'
+ORDER BY 1,2;
+
+OWNER_NAME JOB_NAME            OPERATION JOB_MODE  STATE       ATTACHED
+---------- ------------------- --------- --------- ----------- --------
+SCOTT      EXPDP_20051121      EXPORT    SCHEMA    EXECUTING          1
+SCOTT      SYS_EXPORT_TABLE_01 EXPORT    TABLE     NOT RUNNING        0
+SCOTT      SYS_EXPORT_TABLE_02 EXPORT    TABLE     NOT RUNNING        0
+SYSTEM     SYS_EXPORT_FULL_01  EXPORT    FULL      NOT RUNNING        0
+
+Step 2. Ensure that the listed jobs in dba_datapump_jobs are not export/import Data Pump jobs that are active: status should be 'NOT RUNNING'.
+
+Step 3. Check with the job owner that the job with status 'NOT RUNNING' in dba_datapump_jobs is not an export/import Data Pump job that has been temporary stopped, but is actually a job that failed. (E.g. the full database export job by SYSTEM is not a job that failed, but was deliberately paused with STOP_JOB).
+
+Step 4. Determine in SQL*Plus the related master tables:
+-- locate Data Pump master tables:
+
+SELECT o.status, o.object_id, o.object_type, 
+       o.owner||'.'||object_name "OWNER.OBJECT"
+  FROM dba_objects o, dba_datapump_jobs j
+ WHERE o.owner=j.owner_name AND o.object_name=j.job_name
+   AND j.job_name NOT LIKE 'BIN$%' ORDER BY 4,2;
+
+STATUS   OBJECT_ID OBJECT_TYPE  OWNER.OBJECT
+------- ---------- ------------ -------------------------
+VALID        85283 TABLE        SCOTT.EXPDP_20051121
+VALID        85215 TABLE        SCOTT.SYS_EXPORT_TABLE_02
+VALID        85162 TABLE        SYSTEM.SYS_EXPORT_FULL_01
+
+Step 5. For jobs that were stopped in the past and won't be restarted anymore, delete the master table. E.g.:
+DROP TABLE scott.sys_export_table_02;
+
+Step 6. Re-run the query on dba_datapump_jobs and dba_objects (step 1 and 4). If there are still jobs listed in dba_datapump_jobs, and these jobs do not have a master table anymore, cleanup the job while connected as the job owner. E.g.:
+CONNECT scott/tiger
+SET serveroutput on
+SET lines 100
+DECLARE
+   h1 NUMBER;
+BEGIN
+   h1 := DBMS_DATAPUMP.ATTACH('SYS_EXPORT_TABLE_01','SCOTT');
+   DBMS_DATAPUMP.STOP_JOB (h1);
+END;
+/
+
+Note that after the call to the STOP_JOB procedure, it may take some time for the job to be removed. Query the view user_datapump_jobs to check whether the job has been removed:
+SELECT * FROM user_datapump_jobs;
+
+Step 7. Confirm that the job has been removed:
+CONNECT / as sysdba
+SET lines 200 
+COL owner_name FORMAT a10; 
+COL job_name FORMAT a20 
+COL state FORMAT a11  
+COL operation LIKE state 
+COL job_mode LIKE state 
+
+-- locate Data Pump jobs: 
+
+SELECT owner_name, job_name, operation, job_mode, 
+state, attached_sessions 
+FROM dba_datapump_jobs 
+WHERE job_name NOT LIKE 'BIN$%' 
+ORDER BY 1,2; 
+
+OWNER_NAME JOB_NAME            OPERATION JOB_MODE  STATE       ATTACHED
+---------- ------------------- --------- --------- ----------- --------
+SCOTT      EXPDP_20051121      EXPORT    SCHEMA    EXECUTING          1
+SYSTEM     SYS_EXPORT_FULL_01  EXPORT    FULL      NOT RUNNING        0
+
+-- locate Data Pump master tables:
+
+SELECT o.status, o.object_id, o.object_type, 
+       o.owner||'.'||object_name "OWNER.OBJECT"
+  FROM dba_objects o, dba_datapump_jobs j
+ WHERE o.owner=j.owner_name AND o.object_name=j.job_name
+   AND j.job_name NOT LIKE 'BIN$%' ORDER BY 4,2;
+
+STATUS   OBJECT_ID OBJECT_TYPE  OWNER.OBJECT
+------- ---------- ------------ -------------------------
+VALID        85283 TABLE        SCOTT.EXPDP_20051121
+VALID        85162 TABLE        SYSTEM.SYS_EXPORT_FULL_01
+
+
+
+
+

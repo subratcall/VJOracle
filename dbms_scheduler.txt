@@ -1,0 +1,21 @@
+select JOB_NAME,job_action,state from dba_scheduler_jobs where job_name='UPDATE_AR_PC_BALANCES';
+
+JOB_NAME                       JOB_ACTION                     STATE
+------------------------------ ------------------------------ ---------------
+UPDATE_AR_PC_BALANCES          INET.SP_UPDATE_AR_PC_BALANCES; RUNNING
+
+SQL> select job_name, session_id from dba_scheduler_running_jobs where job_name='UPDATE_AR_PC_BALANCES';
+
+JOB_NAME                       SESSION_ID
+------------------------------ ----------
+UPDATE_AR_PC_BALANCES                3028
+
+
+SQL> select sid,username,module,action,status from gv$session where sid = 3028;
+  SID USERNAME   MODULE               ACTION                    STATUS
+----- ---------- -------------------- ------------------------- --------
+3028 SYS        DBMS_SCHEDULER       UPDATE_AR_PC_BALANCES     ACTIVE
+
+select * from dba_scheduler_jobs
+select * from dba_scheduler_job_log order by log_date desc
+select * from dba_scheduler_job_run_details order by log_date desc

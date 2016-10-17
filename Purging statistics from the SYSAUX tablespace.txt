@@ -1,0 +1,227 @@
+Purging statistics from the SYSAUX tablespace
+
+Posted by John Hallas on May 19, 2009
+
+Whenever statistics in the dictionary are modified, old versions of statistics are saved automatically
+for future restoring. The old statistics are purged automatically at regular intervals based on the statistics 
+history retention setting and the time of recent statistics gathering performed in the system. Retention is 
+configurable using the ALTER_STATS_HISTORY_RETENTION procedure. The default value is 31 days.
+That is normally not too big an issue but in our Peoplesoft environments we run a lot of gather_stats jobs 
+and if the retention period is not managed then the SYSAUX tablespaces can grow very large. 
+In one of our systems the SYSAUX tablespace was 37Gb with over 32Gb consisting of the stats tables and 
+assoc iated indexes. This blog entry will provide the scripts to diagnose and correct excessive tablespace growth
+due to retained statistics
+
+set linesize 120
+set pagesize 100
+COLUMN "Item" FORMAT A25
+COLUMN "Space Used (GB)" FORMAT 999.99
+COLUMN "Schema" FORMAT A25
+COLUMN "Move Procedure" FORMAT A40
+SELECT  occupant_name "Item",
+    space_usage_kbytes/1048576 "Space Used (GB)",
+    schema_name "Schema",
+    move_procedure "Move Procedure"
+FROM v$sysaux_occupants
+ORDER BY 1
+/
+Item                      Space Used (GB) Schema                    Move Procedure
+------------------------- --------------- ------------------------- ----------------------------------------
+AO                                    .00 SYS                       DBMS_AW.MOVE_AWMETA
+EM                                    .08 SYSMAN                    emd_maintenance.move_em_tblspc
+EM_MONITORING_USER                    .00 DBSNMP
+EXPRESSION_FILTER                     .00 EXFSYS
+JOB_SCHEDULER                         .00 SYS
+LOGMNR                                .01 SYSTEM                    SYS.DBMS_LOGMNR_D.SET_TABLESPACE
+LOGSTDBY                              .00 SYSTEM                    SYS.DBMS_LOGSTDBY.SET_TABLESPACE
+ODM                                   .00 DMSYS                     MOVE_ODM
+ORDIM                                 .00 ORDSYS
+ORDIM/PLUGINS                         .00 ORDPLUGINS
+ORDIM/SQLMM                           .00 SI_INFORMTN_SCHEMA
+SDO                                   .00 MDSYS                     MDSYS.MOVE_SDO
+SM/ADVISOR                            .02 SYS
+SM/AWR                                .15 SYS
+SM/OPTSTAT                          11.44 SYS
+SM/OTHER                              .02 SYS
+STATSPACK                             .00 PERFSTAT
+STREAMS                               .00 SYS
+TEXT                                  .00 CTXSYS                    DRI_MOVE_CTXSYS
+TSM                                   .00 TSMSYS
+ULTRASEARCH                           .00 WKSYS                     MOVE_WK
+ULTRASEARCH_DEMO_USER                 .00 WK_TEST                   MOVE_WK
+WM                                    .00 WMSYS                     DBMS_WM.move_proc
+XDB                                   .00 XDB                       XDB.DBMS_XDB.MOVEXDB_TABLESPACE
+XSAMD                                 .00 OLAPSYS                   DBMS_AMD.Move_OLAP_Catalog
+XSOQHIST                              .00 SYS                       DBMS_XSOQ.OlapiMoveProc
+
+--How long old stats are kept
+select dbms_stats.get_stats_history_retention from dual;
+
+--Set retention of old stats to 10 days
+exec dbms_stats.alter_stats_history_retention(10);
+
+--Purge stats older than 10 days (best to do this in stages if there is a lot of data (sysdate-30,sydate-25 etc)
+exec DBMS_STATS.PURGE_STATS(SYSDATE-10);
+
+--Show available stats that have not been purged
+select dbms_stats.get_stats_history_availability from dual;
+
+--Show how big the tables are and rebuild after stats have been purged
+
+col Mb form 9,999,999
+col SEGMENT_NAME form a40
+col SEGMENT_TYPE form a6
+set lines 120
+select sum(bytes/1024/1024) Mb, segment_name,segment_type from dba_segments
+where  tablespace_name = 'SYSAUX'
+and segment_name like 'WRI$_OPTSTAT%'
+and segment_type='TABLE'
+group by segment_name,segment_type order by 1 asc
+
+        MB SEGMENT_NAME                             SEGMEN
+---------- ---------------------------------------- ------
+         0 WRI$_OPTSTAT_OPR                         TABLE
+         0 WRI$_OPTSTAT_AUX_HISTORY                 TABLE
+        88 WRI$_OPTSTAT_TAB_HISTORY                 TABLE
+       126 WRI$_OPTSTAT_IND_HISTORY                 TABLE
+       158 WRI$_OPTSTAT_HISTGRM_HISTORY             TABLE
+     4,482 WRI$_OPTSTAT_HISTHEAD_HISTORY            TABLE
+
+--Show how big the indexes are ready for a rebuild after stats have been purged
+
+col Mb form 9,999,999
+col SEGMENT_NAME form a40
+col SEGMENT_TYPE form a6
+set lines 120
+select sum(bytes/1024/1024) Mb, segment_name,segment_type from dba_segments
+where  tablespace_name = 'SYSAUX'
+and segment_name like '%OPT%'
+and segment_type='INDEX'
+group by segment_name,segment_type order by 1 asc
+/
+
+        MB SEGMENT_NAME                             SEGMEN
+---------- ---------------------------------------- ------
+         0 WRH$_OPTIMIZER_ENV_PK                    INDEX
+         0 I_WRI$_OPTSTAT_OPR_STIME                 INDEX
+         0 I_WRI$_OPTSTAT_AUX_ST                    INDEX
+        88 I_WRI$_OPTSTAT_TAB_ST                    INDEX
+       105 I_WRI$_OPTSTAT_IND_ST                    INDEX
+       105 I_WRI$_OPTSTAT_H_ST                      INDEX
+       195 I_WRI$_OPTSTAT_TAB_OBJ#_ST               INDEX
+       213 I_WRI$_OPTSTAT_H_OBJ#_ICOL#_ST           INDEX
+       214 I_WRI$_OPTSTAT_IND_OBJ#_ST               INDEX
+     2,055 I_WRI$_OPTSTAT_HH_ST                     INDEX
+     3,883 I_WRI$_OPTSTAT_HH_OBJ_ICOL_ST            INDEX
+
+--Note that you cannot enable row movement and shrink the tables as the indexes are function based
+
+alter table WRI$_OPTSTAT_IND_HISTORY enable row movement;
+alter table WRI$_OPTSTAT_IND_HISTORY shrink space;
+
+ERROR at line 1:
+ORA-10631: SHRINK clause should not be specified for this object
+
+select 'alter table '||segment_name||'  move tablespace SYSAUX;' from dba_segments where tablespace_name = 'SYSAUX'
+and segment_name like '%OPT%' and segment_type='TABLE'
+
+--Run the rebuild table commands – note that this does cause any gather_stats jobs to fail
+
+alter table WRI$_OPTSTAT_TAB_HISTORY  move tablespace sysaux;
+alter table WRI$_OPTSTAT_IND_HISTORY  move tablespace sysaux;
+alter table WRI$_OPTSTAT_HISTHEAD_HISTORY  move tablespace sysaux;
+alter table WRI$_OPTSTAT_HISTGRM_HISTORY  move tablespace sysaux;
+alter table WRI$_OPTSTAT_AUX_HISTORY  move tablespace sysaux;
+alter table WRI$_OPTSTAT_OPR  move tablespace sysaux;
+alter table WRH$_OPTIMIZER_ENV  move tablespace sysaux;
+
+--Script to generate rebuild statements
+
+select 'alter index '||segment_name||'  rebuild online parallel (degree 14);' from dba_segments where tablespace_name = 'SYSAUX'
+and segment_name like '%OPT%' and segment_type='INDEX'
+
+--Once completed it is best to check that the indexes (indices) are usable
+
+select  di.index_name,di.index_type,di.status  from  dba_indexes di
+where  di.tablespace_name = 'SYSAUX'
+and di.index_name like '%OPT%'
+order by 1 asc
+/
+
+SQL>
+INDEX_NAME                     INDEX_TYPE                  STATUS
+------------------------------ --------------------------- --------
+I_WRI$_OPTSTAT_AUX_ST          FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_HH_OBJ_ICOL_ST  FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_HH_ST           FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_H_OBJ#_ICOL#_ST FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_H_ST            FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_IND_OBJ#_ST     FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_IND_ST          FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_OPR_STIME       FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_TAB_OBJ#_ST     FUNCTION-BASED NORMAL       VALID
+I_WRI$_OPTSTAT_TAB_ST          FUNCTION-BASED NORMAL       VALID
+WRH$_OPTIMIZER_ENV_PK          NORMAL                      VALID
+
+--Finally lets see what space has been saved with a retention date of 1 day and a gather schema stats for the SYSASDM schema
+
+
+exec dbms_stats.alter_stats_history_retention(1);
+
+select dbms_stats.get_stats_history_retention from dual;
+
+        MB SEGMENT_NAME                             SEGMEN
+---------- ---------------------------------------- ------
+         0 WRI$_OPTSTAT_OPR                         TABLE
+         0 WRI$_OPTSTAT_AUX_HISTORY                 TABLE
+         3 WRI$_OPTSTAT_TAB_HISTORY                 TABLE
+         4 WRI$_OPTSTAT_IND_HISTORY                 TABLE
+         8 WRI$_OPTSTAT_HISTGRM_HISTORY             TABLE
+       104 WRI$_OPTSTAT_HISTHEAD_HISTORY            TABLE
+
+        MB SEGMENT_NAME                             SEGMEN
+---------- ---------------------------------------- ------
+         0 WRH$_OPTIMIZER_ENV_PK                    INDEX
+         0 I_WRI$_OPTSTAT_OPR_STIME                 INDEX
+         0 I_WRI$_OPTSTAT_AUX_ST                    INDEX
+         2 I_WRI$_OPTSTAT_IND_ST                    INDEX
+         2 I_WRI$_OPTSTAT_TAB_ST                    INDEX
+         3 I_WRI$_OPTSTAT_TAB_OBJ#_ST               INDEX
+         4 I_WRI$_OPTSTAT_IND_OBJ#_ST               INDEX
+         5 I_WRI$_OPTSTAT_H_ST                      INDEX
+         9 I_WRI$_OPTSTAT_H_OBJ#_ICOL#_ST           INDEX
+        41 I_WRI$_OPTSTAT_HH_ST                     INDEX
+        96 I_WRI$_OPTSTAT_HH_OBJ_ICOL_ST            INDEX
+
+******************************************
+
+I followed above steps & got stuck @ index rebuild, so request you to follow below steps, if you stuck@ index rebuild.
+
+– To implement the solution, please execute the following steps::
+1- Take a full backup of the database
+2- Move the tables:
+
+For indexes, find the indexes for the above tables and rebuild them. In case an index is unusable, please refer the following example:
+
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_TAB_ST’,'SYS’) from dual;
+
+Then drop and recreate the indexes using the obtained DDL’s.
+
+
+Great….easy to understand
+just add 1 step
+
+drop indexes and recreate if unusable
+select dbms_metadata.get_ddl(‘INDEX’,'WRH$_OPTIMIZER_ENV_PK’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_AUX_ST’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_OPR_STIME’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_TAB_ST’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_IND_ST’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_TAB_OBJ#_ST’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_IND_OBJ#_ST’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_HH_ST ‘,’SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_HH_OBJ_ICOL_ST’,'SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_H_ST ‘,’SYS’) from dual;
+select dbms_metadata.get_ddl(‘INDEX’,'I_WRI$_OPTSTAT_H_OBJ#_ICOL#_ST’,'SYS’) from dual;
+
+Reply

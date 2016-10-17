@@ -1,0 +1,94 @@
+Restore and recover a tablespace
+
+
+
+
+rman target / nocatalog
+
+run {
+          allocate channel a2 type 'SBT_TAPE';
+          send 'NB_ORA_CLIENT=vorcdevin1,NB_ORA_SERV=untcpnbu01';
+
+SQL 'ALTER TABLESPACE VJTEST OFFLINE'; 
+          RESTORE TABLESPACE VJTEST;
+	  RECOVER TABLESPACE VJTEST;
+ 	  SQL 'ALTER TABLESPACE VJTEST ONLINE';
+ }
+
+
+
+ run{
+      startup mount pfile=/usr/oracle/admin/stgap1a/pfile/initstgap1a.ora;
+      allocate channel a1 type 'SBT_TAPE';
+      send 'NB_ORA_CLIENT=vorcprdap1bbk1,NB_ORA_SERV=uhdcbpnbu41';
+        set newname for datafile 1 to '+STGAP1DG';
+        set newname for datafile 2 to '+STGAP1DG';
+        set newname for datafile 3 to '+STGAP1DG';
+       set newname for datafile 4 to '+STGAP1DG';
+       set newname for datafile 5 to '+STGAP1DG';
+       set newname for datafile 6 to '+STGAP1DG';
+       set newname for datafile 7 to '+STGAP1DG';
+       set newname for datafile 8 to '+STGAP1DG';
+       set newname for datafile 9 to '+STGAP1DG';
+       set newname for datafile 10 to '+STGAP1DG';
+       set newname for datafile 11 to '+STGAP1DG';
+       set newname for datafile 12 to '+STGAP1DG';
+       set newname for datafile 13 to '+STGAP1DG';
+  set until time "to_date('Oct 07 2011 17:01:42','MON DD YYYY HH24:MI:SS')";
+    restore database check readonly ;
+   switch datafile all;
+     recover database delete archivelog, check readonly;
+    alter database open RESETLOGS;
+     release channel a1;
+ }
+
+
+restore archivelog 
+
+Restore and recover the whole database
+startup mount;
+rman target / nocatalog
+
+run {
+set until time "to_date('Mar 25 2010 02:00:00','MON DD YYYY HH24:MI:SS')"; 
+  allocate channel a2 type 'SBT_TAPE';
+ RESTORE DATABASE;
+ RECOVER DATABASE;
+ ALTER DATABASE OPEN RESETLOGS;
+}
+
+
+Restore and recover a datafile
+run {
+  allocate channel a2 type 'SBT_TAPE';
+ SQL 'ALTER DATABASE DATAFILE 64 OFFLINE';
+ RESTORE DATAFILE 64;
+ RECOVER DATAFILE 64;
+ SQL 'ALTER DATABASE DATAFILE 64 ONLINE';
+}
+********************************************************************
+rman target / nocatalog
+
+run {
+          set until time "to_date('Mar 22 2010 11:00:00','MON DD YYYY HH24:MI:SS')"; 
+          allocate channel a1 type 'SBT_TAPE';
+          send 'NB_ORA_CLIENT=uddcbdlab01,NB_ORA_SERV=uddcbdlab12';
+ RESTORE DATABASE;
+ RECOVER DATABASE;
+ ALTER DATABASE OPEN RESETLOGS;
+      release channel a1;
+
+ }
+
+*****************************************************************
+
+rman target / nocatalog
+
+run {
+          allocate channel a1 type 'SBT_TAPE';
+          send 'NB_ORA_CLIENT=uddcbdlab01,NB_ORA_SERV=uddcbdlab12';
+          SQL 'ALTER TABLESPACE USERS OFFLINE'; 
+          RESTORE TABLESPACE USERS;
+	  RECOVER TABLESPACE USERS;
+ 	  SQL 'ALTER TABLESPACE USERS ONLINE';
+ }

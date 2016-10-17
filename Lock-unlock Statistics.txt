@@ -1,0 +1,4 @@
+select 'exec DBMS_STATS.LOCK_TABLE_STATS('''||owner||''','''||table_name||''');' from dba_tables where owner='PSOFTF8' AND table_name like '%TMP' or table_name like '%WRK' and owner not like 'SYS%';
+select 'exec DBMS_STATS.UNLOCK_TABLE_STATS('''||owner||''','''||table_name||''');' from dba_tables where owner='PSOFTF8' AND table_name like '%TMP' or table_name like '%WRK' and owner not like 'SYS%';
+select owner, table_name, stattype_locked from dba_tab_statistics where stattype_locked is not null and owner not in ('SYS','SYSTEM');
+select 'exec DBMS_STATS.UNLOCK_TABLE_STATS('''||owner||''','''||table_name||''');' from dba_tab_statistics where stattype_locked is not null and owner not in ('SYS','SYSTEM');

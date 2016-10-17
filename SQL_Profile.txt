@@ -1,0 +1,33 @@
+SELECT name, created, description, status FROM dba_sql_profiles;
+execute dbms_sqltune.accept_sql_profile(task_name => 'staName49450',task_owner => 'IRIS', replace => TRUE);
+EXECUTE dbms_sqltune.drop_tuning_task('staName49450');
+SELECT name, created, description, status FROM dba_sql_profiles;
+
+col CPU_TIME FOR 9999999999999999
+col ELAPSED_TIME FOR 9999999999999999
+col USER_IO_WAIT_TIME FOR 9999999999999999
+SELECT child_number, disk_reads, buffer_gets, user_io_wait_time, optimizer_mode, optimizer_cost, plan_hash_value, cpu_time, elapsed_time
+     FROM v$sql WHERE sql_id='0t5fw0gtf0665' ORDER BY child_number;
+
+
+CHILD_NUMBER DISK_READS BUFFER_GETS USER_IO_WAIT_TIME OPTIMIZER_ OPTIMIZER_COST PLAN_HASH_VALUE          CPU_TIME      ELAPSED_TIME
+------------ ---------- ----------- ----------------- ---------- -------------- --------------- ----------------- -----------------
+           0  246529611  1417057982       17226193373 FIRST_ROWS         231043       554605205       58844671977       75733845890
+           1  205018990  4092335906       13011672325 FIRST_ROWS         231542       554605205       49010342543       59800297462
+           2       3197      146402           2776854 ALL_ROWS                6      3149505603           3414988           5244194
+
+SET pages 50
+col begin_interval_time FOR a30
+col sql_profile FOR a30
+SET lines 200
+col cpu_time_total FOR 9999999999999999
+col elapsed_time_total FOR 9999999999999999
+col iowait_total FOR 9999999999999999
+SELECT b.begin_interval_time, a.plan_hash_value, a.optimizer_mode, a.sql_profile, a.disk_reads_total, a.buffer_gets_total, a.cpu_time_total, a.elapsed_time_total, a.iowait_total
+     FROM dba_hist_sqlstat a, dba_hist_snapshot b
+     WHERE sql_id='0t5fw0gtf0665'
+     AND a.snap_id=b.snap_id
+     AND b.begin_interval_time > SYSDATE -2
+     ORDER BY a.snap_id DESC;
+
+http://blog.yannickjaquier.com/oracle/dbms_sqltune-concrete-example.html

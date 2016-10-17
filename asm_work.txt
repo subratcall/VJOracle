@@ -1,0 +1,122 @@
+SQL> select group_number,name,total_mb,free_mb from   v$asm_diskgroup order by group_number;
+
+GROUP_NUMBER NAME                             TOTAL_MB    FREE_MB
+------------ ------------------------------ ---------- ----------
+           1 PRDIN1DG                            51195      39824
+           2 PRDMY1DG                            92151      86654
+
+
+select GROUP_NUMBER,NAME,TOTAL_MB,FREE_MB from v$asm_disk order by group_number;
+
+GROUP_NUMBER NAME                             TOTAL_MB    FREE_MB
+------------ ------------------------------ ---------- ----------
+           0                                       287          0
+           0                                       287          0
+           0                                       287          0
+           1 ASM1                                10239       7964
+           1 ASM5                                10239       7984
+           1 ASM4                                10239       7962
+           1 ASM3                                10239       7981
+           1 ASM2                                10239       7933
+           2 ASM8                                10239       9630
+           2 ASM7                                10239       9644
+           2 ASM6                                10239       9599
+
+GROUP_NUMBER NAME                             TOTAL_MB    FREE_MB
+------------ ------------------------------ ---------- ----------
+           2 ASM9                                10239       9627
+           2 ASM13                               10239       9640
+           2 ASM12                               10239       9622
+           2 ASM11                               10239       9596
+           2 ASM10                               10239       9639
+           2 ASM14                               10239       9657
+
+17 rows selected.
+
+SQL> 
+
+ALTER DISKGROUP PRDIN1DG DROP DISK ASM3, ASM4, ASM5 REBALANCE POWER 11 WAIT;
+
+ALTER DISKGROUP PRDMY1DG DROP DISK ASM8, ASM9, ASM10,ASM11,ASM12,ASM13 REBALANCE POWER 11 WAIT;
+
+
+SQL> ALTER DISKGROUP PRDIN1DG DROP DISK ASM3, ASM4, ASM5 REBALANCE POWER 11 WAIT;
+
+Diskgroup altered.
+
+SQL> select group_number,name,total_mb,free_mb from   v$asm_diskgroup order by group_number;
+
+GROUP_NUMBER NAME                             TOTAL_MB    FREE_MB
+------------ ------------------------------ ---------- ----------
+           1 PRDIN1DG                            20478       9113
+           2 PRDMY1DG                            92151      86804
+
+SQL> ALTER DISKGROUP PRDMY1DG DROP DISK ASM8, ASM9, ASM10,ASM11,ASM12,ASM13,ASM14 REBALANCE POWER 11 WAIT;
+
+Diskgroup altered.
+
+SQL> select name,state from v$asm_diskgroup;
+
+NAME                           STATE
+------------------------------ -----------
+PRDIN1DG                       MOUNTED
+PRDMY1DG                       MOUNTED
+
+SQL>  select group_number,name,total_mb,free_mb from   v$asm_diskgroup order by group_number;
+
+GROUP_NUMBER NAME                             TOTAL_MB    FREE_MB
+------------ ------------------------------ ---------- ----------
+           1 PRDIN1DG                            20478       9113
+           2 PRDMY1DG                            20478      15145
+
+
+ select GROUP_NUMBER,NAME,TOTAL_MB,FREE_MB from v$asm_disk order by group_number;
+
+GROUP_NUMBER NAME                             TOTAL_MB    FREE_MB
+------------ ------------------------------ ---------- ----------
+           0                                       287          0
+           0                                       287          0
+           0                                     10239          0
+           0                                     10239          0
+           0                                     10239          0
+           0                                     10239          0
+           0                                     10239          0
+           0                                     10239          0
+           0                                       287          0
+           0                                     10239          0
+           0                                     10239          0
+
+GROUP_NUMBER NAME                             TOTAL_MB    FREE_MB
+------------ ------------------------------ ---------- ----------
+           0                                     10239          0
+           0                                     10239          0
+           1 ASM1                                10239       4557
+           1 ASM2                                10239       4556
+           2 ASM6                                10239       7572
+           2 ASM7                                10239       7573
+
+17 rows selected.
+
+CREATE DISKGROUP PRDPH1DG 
+EXTERNAL REDUNDANCY
+DISK
+'ASM8',
+'ASM9';
+
+CREATE DISKGROUP PRDAP1DG 
+EXTERNAL REDUNDANCY
+DISK
+'ASM3',
+'ASM4',
+'ASM5';
+
+CREATE DISKGROUP PRDSG1DG 
+EXTERNAL REDUNDANCY
+DISK
+'ASM10',
+'ASM11';
+
+
+SQL> 
+
+ALTER DISKGROUP PRDMY1DG DROP DISK ASM14 REBALANCE POWER 11 WAIT;

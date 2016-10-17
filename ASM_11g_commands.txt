@@ -1,0 +1,724 @@
+
+ls /dev/oracleasm/disks/
+
+
+$ /etc/init.d/oracleasm listdisks
+ASM01
+ASM02
+ASM03
+ASM04
+ASM05
+
+$ oracleasm querydisk ASM01 -v
+
+# oracleasm scandisks
+#rpm -qa |grep oracleasm  ---ASMLib package info
+	oracleasm-2.6.18-308.el5-2.0.5-1.el5
+	   oracleasm-support-2.1.7-1.el5
+	   oracleasmlib-2.0.4-1.el5
+
+$ for i in `oracleasm listdisks`; do oracleasm querydisk $i; done
+Disk "ASM01" is a valid ASM disk
+Disk "ASM02" is a valid ASM disk
+Disk "ASM03" is a valid ASM disk
+Disk "ASM04" is a valid ASM disk
+Disk "ASM05" is a valid ASM disk
+
+# /sbin/blkid | grep oracleasm        ---List physcial disk and label info from os level
+	/dev/mapper/ASM01p1: LABEL="ASM01" TYPE="oracleasm"
+	/dev/mapper/ASMOCRVOT1p1: LABEL="ASMOCRVOT1" TYPE="oracleasm"
+	/dev/mapper/ASM05p1: LABEL="ASM05" TYPE="oracleasm"
+	/dev/mapper/ASM06p1: LABEL="ASM06" TYPE="oracleasm"
+
+$ oracleasm status   -- Check ASM status
+
+$ asmcmd lsdsk  -- lists used disks
+
+ $ srvctl status diskgroup -g CFGCOMEX -a
+	Disk Group CFGCOMEX is running on uadcbdrac77,uadcbdrac76
+	Disk Group CFGCOMEX is enabled
+
+ $ crs_stat -p ora.DEVCRS.dg
+	NAME=ora.DEVCRS.dg
+	TYPE=ora.diskgroup.type
+	ACTION_SCRIPT=
+	AUTO_START=always
+	CHECK_INTERVAL=300
+	DESCRIPTION=CRS resource type definition for ASM disk group resource
+	RESTART_ATTEMPTS=5
+	SCRIPT_TIMEOUT=60
+	START_TIMEOUT=900
+	STOP_TIMEOUT=180
+	UPTIME_THRESHOLD=1d
+	
+$ asmcmd lsdsk -k -G PRDPDW1_ARCDG 		-- Disk space consumption
+$ asmcmd lsdsk -p  -G PRDPDW1DG		 	-- Disk membership in DG
+$ asmcmd lsdsk  --discovery -G PRDPDW1DG	 -- find disks
+$ asmcmd lsdsk -G ADCDEVCRS
+Path
+ORCL:ASMOCRVOT1
+ORCL:ASMOCRVOT2
+ORCL:ASMOCRVOT3
+ORCL:ASMOCRVOT4
+ORCL:ASMOCRVOT5
+
+# uname -a
+
+# ls -al /dev/*
+# gpnptool get
+$ ls -al /dev/oracleasm/disks
+$ cat /proc/partitions
+$ cat /etc/sysconfig/*asm*
+$ ls -al /etc/sysconfig/*asm*
+$ $ASM_HOME/bin/kfod asm_diskstring='ORCL:*' disks=all
+$ $ASM_HOME/bin/kfod disks=all
+$ $ASM_HOME/bin/kfod asm_diskstring='/dev/oracleasm/disks/*' disks=all
+$ /usr/sbin/oracleasm-discover 'ORCL:*' 
+
+--To make dg to autostart during crs restart
+# ./crsctl modify resource "ora.ADCDEVCRS.dg" -attr "AUTO_START=always"
+
+--Queries
+
+--Find ASM Diskgroups and status
+select name||'|'||state from v$asm_diskgroup;
+
+--Find diskgroup associated to instances
+ SELECT dg.name AS diskgroup, SUBSTR(c.instance_name,1,12) AS instance,
+                SUBSTR(c.db_name,1,12) AS dbname, SUBSTR(c.SOFTWARE_VERSION,1,12) AS software,
+                SUBSTR(c.COMPATIBLE_VERSION,1,12) AS compatible
+                FROM V$ASM_DISKGROUP dg, V$ASM_CLIENT c
+                WHERE  dg.group_number = c.group_number;
+
+DISKGROUP                      INSTANCE     DBNAME   SOFTWARE     COMPATIBLE
+------------------------------ ------------ -------- ------------ ------------
+DEVMSAF                        devmsaf11    devmsaf1 11.2.0.3.0   11.2.0.0.0
+ECOMEX                         devcomex1    devcomex 11.2.0.3.0   11.2.0.0.0
+DEVCRS                         +ASM1        +ASM     11.2.0.3.0   11.2.0.3.0
+CFGCOMEX                       cfgcomex1    cfgcomex 11.2.0.3.0   11.2.0.0.0
+
+select gv$asm_diskgroup.GROUP_NUMBER||'|'||gv$instance.INSTANCE_NAME||'|'||gv$asm_diskgroup.NAME||'|'||round(gv$asm_diskgroup.TOTAL_MB)||'|'||round(gv$asm_diskgroup.FREE_MB)||'|'||round(gv$asm_diskgroup.USABLE_FILE_MB)||'|'||nvl(gv$asm_diskgroup.TYPE, 'DBCA_NULL')||'|'||gv$asm_diskgroup.STATE||'|'||nvl(gv$asm_diskgroup.COMPATIBILITY, 'DBCA_NULL')||'|'||nvl(gv$asm_diskgroup.DATABASE_COMPATIBILITY, 'DBCA_NULL') from gv$instance,gv$asm_diskgroup where gv$instance.INST_ID=gv$asm_diskgroup.INST_ID order by NAME;
+
+select inst.INSTANCE_NAME||'|'||nvl(vol.mountpath, 'USMCA_NULL')||'|'||nvl(vol.volume_name, 'USMCA_NULL')||'|'||vol.volume_device||'|'||dg.name||'|'||round(nvl(vol.size_mb,0)) from gv$asm_volume vol, gv$asm_diskgroup dg, gv$instance inst where vol.usage='ACFS' and vol.volume_device not in (select vol_device from gv$asm_acfsvolumes) and vol.group_number=dg.group_number and inst.INST_ID=vol.INST_ID and inst.INST_ID=dg.INST_ID order by vol.mountpath;
+
+
+select name, 100-trunc(100*free_mb/total_mb) occupancy, trunc((total_mb-free_mb)/1024) used, total_mb/1024 total from v$asm_diskgroup;
+
+SELECT dg.name AS diskgroup, SUBSTR(c.instance_name,1,12) AS instance,
+                SUBSTR(c.db_name,1,12) AS dbname, SUBSTR(c.SOFTWARE_VERSION,1,12) AS software,
+                SUBSTR(c.COMPATIBLE_VERSION,1,12) AS compatible
+                FROM V$ASM_DISKGROUP dg, V$ASM_CLIENT c
+                WHERE  dg.group_number = c.group_number;
+
+################################################################
+# Adding/Removing/Managing configuration about existing ASM instances
+################################################################
+
+--Use the following syntax to add configuration information about an existing ASM instance:
+srvctl add asm -n node_name -i +asm_instance_name -o oracle_home
+
+--Use the following syntax to remove an ASM instance:
+srvctl remove asm -n node_name [-i +asm_instance_name]
+
+--Use the following syntax to enable an ASM instance:
+srvctl enable asm -n node_name [-i ] +asm_instance_name
+
+--Use the following syntax to disable an ASM instance:
+srvctl disable asm -n node_name [-i +asm_instance_name]
+
+--Use the following syntax to start an ASM instance:
+srvctl start asm -n node_name [-i +asm_instance_name] [-o start_options]
+
+--Use the following syntax to stop an ASM instance:
+srvctl stop asm -n node_name [-i +asm_instance_name] [-o stop_options]
+
+--Use the following syntax to show the configuration of an ASM instance:
+srvctl config asm -n node_name
+
+--Use the following syntax to obtain the status of an ASM instance:
+srvctl status asm -n node_name
+
+srvctl stop asm -n uddcbprac10 -f
+
+--P.S.:
+--For all of the SRVCTL commands in this section for which the
+--option is not required, if you do not specify an instance name, then -i
+--the command applies to all of the ASM instances on the node.
+
+###################################
+# Managing DiskGroup inside ASM:
+###################################
+
+--Note that adding or dropping disks will initiate a rebalance of the data on the disks. 
+--The status of these processes can be shown by selecting from v$asm_operation.
+
+
+--Quering ASM Disk Groups
+col name format a25
+col DATABASE_COMPATIBILITY format a10
+col COMPATIBILITY format a10
+select * from v$asm_diskgroup;
+--or
+select name, state, type, total_mb, free_mb from v$asm_diskgroup;
+
+--Quering ASM Disks
+col PATH format a15
+col name format a25
+select name, path, group_number, TOTAL_MB, FREE_MB, READS, WRITES, READ_TIME,
+WRITE_TIME from v$asm_disk order by 3,1;
+--or
+col PATH format a50
+col HEADER_STATUS  format a12
+col name format a25
+--select INCARNATION,
+select name, path, MOUNT_STATUS,HEADER_STATUS, MODE_STATUS, STATE, group_number,
+OS_MB, TOTAL_MB, FREE_MB, READS, WRITES, READ_TIME, WRITE_TIME, BYTES_READ,
+BYTES_WRITTEN, REPAIR_TIMER, MOUNT_DATE, CREATE_DATE from v$asm_disk;
+
+
+ASMLIB commands ( as root)
+/etc/init.d/oracleasm start
+/etc/init.d/oracleasm stop
+/etc/init.d/oracleasm restart
+/etc/init.d/oracleasm configure
+/etc/init.d/oracleasm status
+/etc/init.d/oracleasm enable
+/etc/init.d/oracleasm disable
+/etc/init.d/oracleasm listdisks
+/etc/init.d/oracleasm deletedisk
+/etc/init.d/oracleasm scandisks
+/etc/init.d/oracleasm querydisk /dev/sdb1
+/etc/init.d/oracleasm createdisk /dev/sdb1 VOL1
+/etc/init.d/oracleasm renamedisk /dev/sdb1 VOL1
+ 
+###################################
+#TUNING and Analisys
+###################################
+--Only Performance Statistics
+--N.B Time in Hundredseconds!
+col READ_TIME format 9999999999.99
+col WRITE_TIME format 9999999999.99
+col BYTES_READ format 99999999999999.99
+col BYTES_WRITTEN  format 99999999999999.99
+select name, STATE, group_number, TOTAL_MB, FREE_MB,READS, WRITES, READ_TIME,
+ WRITE_TIME, BYTES_READ, BYTES_WRITTEN, REPAIR_TIMER,MOUNT_DATE
+from v$asm_disk order by group_number, name;
+
+
+--Check the Num of Extents in use per Disk inside one Disk Group.
+select max(substr(name,1,30)) group_name, count(PXN_KFFXP) extents_per_disk,
+DISK_KFFXP, GROUP_KFFXP from x$kffxp, v$ASM_DISKGROUP gr
+where GROUP_KFFXP=&group_nr and GROUP_KFFXP=GROUP_NUMBER
+group by GROUP_KFFXP, DISK_KFFXP order by GROUP_KFFXP, DISK_KFFXP;
+
+
+--Find The File distribution Between Disks
+SELECT * FROM v$asm_alias  WHERE  name='PWX_DATA.272.669293645';
+
+SELECT GROUP_KFFXP Group#,DISK_KFFXP Disk#,AU_KFFXP AU#,XNUM_KFFXP Extent#
+FROM   X$KFFXP WHERE  number_kffxp=(SELECT file_number FROM v$asm_alias
+WHERE name='PWX_DATA.272.669293645');
+
+--or
+
+SELECT GROUP_KFFXP Group#,DISK_KFFXP Disk#,AU_KFFXP AU#,XNUM_KFFXP Extent#
+FROM X$KFFXP WHERE  number_kffxp=&DataFile_Number;
+
+--or
+select d.name, XV.GROUP_KFFXP Group#, XV.DISK_KFFXP Disk#,
+XV.NUMBER_KFFXP File_Number, XV.AU_KFFXP AU#, XV.XNUM_KFFXP Extent#,
+XV.ADDR, XV.INDX, XV.INST_ID, XV.COMPOUND_KFFXP, XV.INCARN_KFFXP,
+XV.PXN_KFFXP, XV.XNUM_KFFXP,XV.LXN_KFFXP, XV.FLAGS_KFFXP,
+XV.CHK_KFFXP, XV.SIZE_KFFXP from v$asm_disk d, X$KFFXP XV
+where d.GROUP_NUMBER=XV.GROUP_KFFXP and d.DISK_NUMBER=XV.DISK_KFFXP
+and number_kffxp=&File_NUM order by 2,3,4;
+
+
+--List the hierarchical tree of files stored in the diskgroup
+SELECT concat('+'||gname, sys_connect_by_path(aname, '/')) full_alias_path FROM
+(SELECT g.name gname, a.parent_index pindex, a.name aname,
+a.reference_index rindex FROM v$asm_alias a, v$asm_diskgroup g
+WHERE a.group_number = g.group_number)
+START WITH (mod(pindex, power(2, 24))) = 0
+CONNECT BY PRIOR rindex = pindex;
+
+################################################################
+
+###################################
+#Create and Modify Disk Group
+###################################
+
+----------------------------------------------------------------------------------------------
+How To Add a New Disk(s) to An Existing Diskgroup on RAC (Best Practices). [ID 557348.1]
+----------------------------------------------------------------------------------------------
+
+create diskgroup FRA1 external redundancy disk '/dev/vx/rdsk/oraASMdg/fra1'
+ATTRIBUTE 'compatible.rdbms' = '11.1', 'compatible.asm' = '11.1';
+
+alter diskgroup FRA1  check all;
+
+--on +ASM2 :
+alter diskgroup FRA1 mount;
+
+
+--Add a second disk:
+alter diskgroup FRA1 add disk '/dev/vx/rdsk/oraASMdg/fra2';
+
+
+--Add several disks with a wildcard:
+alter diskgroup FRA1 add disk '/dev/vx/rdsk/oraASMdg/fra*';
+
+
+--Remove a disk from a diskgroup:
+alter diskgroup FRA1 drop disk 'FRA1_0002';
+
+
+--Drop the entire DiskGroup
+drop diskgroup DATA1 including contents;
+
+--How to DROP the entire DiskGroup when it is in NOMOUNT Status
+--Generate the dd command which will reset the header of all the
+--disks belong the GROUP_NUMBER=0!!!!
+select 'dd if=/dev/zero of=''' ||PATH||''' bs=8192 count=100' from v$asm_disk
+where GROUP_NUMBER=0;
+
+
+select * from v$asm_operation;
+
+---------------------------------------------------------------------------------------
+
+alter diskgroup FRA1 drop disk 'FRA1_0002';
+alter diskgroup FRA1 add disk '/dev/vx/rdsk/fra1dg/fra3';
+
+alter diskgroup FRA1 drop disk 'FRA1_0003';
+alter diskgroup FRA1 add disk '/dev/vx/rdsk/fra1dg/fra4';
+
+--When a new diskgroup is created, it is only mounted on the local instance,
+--and only the instance-specific entry for the asm_diskgroups parameter is updated. 
+--By manually mounting the diskgroup on other instances, the asm_diskgroups parameter
+--on those instances are updated.
+
+--on +ASM1 :
+create diskgroup FRA1 external redundancy disk '/dev/vx/rdsk/fradg/fra1'
+ATTRIBUTE 'compatible.rdbms' = '11.1', 'compatible.asm' = '11.1';
+
+--on +ASM2 :
+alter diskgroup FRA1 mount;
+
+
+--It works even for on going balances!!!
+alter diskgroup DATA1 rebalance power 10;
+
+################################################################
+# New ASM Command Line Utility (ASMCMD) Commands and Options
+################################################################
+
+ASMCMD Command Reference:
+
+Command Description
+--------------------
+- cd Command Changes the current directory to the specified directory.
+- cp Command Enables you to copy files between ASM disk groups on a local instance and remote instances.
+- du Command Displays the total disk space occupied by ASM files in the specified
+- ASM directory and all of its subdirectories, recursively.
+- exit Command Exits ASMCMD.
+- find Command Lists the paths of all occurrences of the specified name (with wildcards) under the specified directory.
+- help Command Displays the syntax and description of ASMCMD commands.
+- ls Command Lists the contents of an ASM directory, the attributes of the specified
+- file, or the names and attributes of all disk groups.
+- lsct Command Lists information about current ASM clients.
+- lsdg Command Lists all disk groups and their attributes.
+- lsdsk Command Lists disks visible to ASM.
+- md_backup Command Creates a backup of all of the mounted disk groups.
+- md_restore Command Restores disk groups from a backup.
+- mkalias Command Creates an alias for system-generated filenames.
+- mkdir Command Creates ASM directories.
+- pwd Command Displays the path of the current ASM directory.
+- remap Command Repairs a range of physical blocks on a disk.
+- rm Command Deletes the specified ASM files or directories.
+- rmalias Command Deletes the specified alias, retaining the file that the alias points to.
+
+--------
+-- kfed tool From Unix Prompt for reading ASM disk header.
+kfed read /dev/vx/rdsk/fra1dg/fra1
+
+
+
+################################################################
+# CREATE and Manage Tablespaces and Datafiles on ASM
+################################################################
+
+CREATE TABLESPACE my_ts DATAFILE '+disk_group_1' SIZE 100M AUTOEXTEND ON;
+
+ALTER TABLESPACE sysaux ADD DATAFILE '+disk_group_1' SIZE 100M;
+
+ALTER DATABASE DATAFILE '+DATA1/dbname/datafile/audit.259.668957419' RESIZE 150M;
+
+-------------------------
+create diskgroup DATA1 external redundancy disk '/dev/vx/rdsk/oraASMdg/fra1'
+ATTRIBUTE 'compatible.rdbms' = '11.1', 'compatible.asm' = '11.1';
+
+
+select 'alter diskgroup DATA1 add disk ''' || PATH || ''';' from v$asm_disk
+where GROUP_NUMBER=0 and rownum<=&Num_Disks_to_add;
+
+select 'alter diskgroup FRA1 add disk ''' || PATH || ''';' from v$asm_disk
+where GROUP_NUMBER=0 and rownum<=&Num_Disks_to_add;
+
+
+--Remove ASM header
+select 'dd if=/dev/zero of=''' ||PATH||''' bs=8192 count=100' from v$asm_disk
+where GROUP_NUMBER=0;
+
+
+========================
+purge archive files in asm environment: 
+select 'alter diskgroup DSKGRP1 drop file
+''<diskgroup>/<dbname>/ARCHIVELOG/'|| to_char(b.creation_date,'YYYY_MM_DD') ||'/'||
+a.name||''';'
+from v$asm_alias a, v$asm_file b
+where a.group_number = b.group_number
+and a.file_number = b.file_number
+and b.type='ARCHIVELOG'
+order by a.name; 
+
+====================================================
+query to know used asm disk space
+
+SELECT gname,sum(space) used_mb
+FROM
+(
+SELECT space,gname
+FROM (
+SELECT g.name gname, a.parent_index pindex, a.name aname, vf.space,
+a.reference_index rindex, a.ALIAS_DIRECTORY dir, a.SYSTEM_CREATED sys
+FROM v$asm_alias a, v$asm_diskgroup g, v$asm_file vf
+WHERE a.group_number = g.group_number
+and a.file_number=vf.file_number(+)
+and a.group_number=vf.group_number(+)
+)
+START WITH (MOD(pindex, POWER(2,24))) = 0
+CONNECT BY PRIOR rindex = pindex
+) GROUP BY gname; 
+
+
+----------------------------------------------------------------------------------
+Finding free space in each lun
+
+sQL> select group_number, name from v$asm_diskgroup;
+
+SQL> select GROUP_NUMBER,DISK_NUMBER, TOTAL_MB, FREE_MB,path from v$asm_disk where group_number=&1 order by GROUP_NUMBER;
+------------------------------------------------------
+
+ASM Disk Performance Monitoring
+
+ col disk_path format a16 heading "Disk Path"
+ col total_mb format 999,999 heading "MB"
+ col avg_read_ms format 999.99 heading "Avg Read|(ms)"
+ col io_1k format  999,999 heading "IO|/1000"
+col io_secs format  999,999 heading "IO|seconds"
+col pct_io format 999.99 heading "Pct|IO"
+ col pct_time format 999.99 heading "Pct|Time"
+set pagesize 10000
+set lines 75
+ set verify off
+set echo on
+SELECT d.PATH disk_path, d.total_mb,
+         ROUND(ds.read_secs * 1000 / ds.reads, 2) avg_read_ms,
+          ds.reads/1000 +  ds.writes/1000 io_1k,
+       ds.read_secs +ds.write_secs io_secs,
+       ROUND((d.reads + d.writes) * 100 /
+              SUM(d.reads + d.writes) OVER (),2) pct_io,
+           ROUND((ds.read_secs +ds.write_secs)*100/
+                SUM(ds.read_secs +ds.write_secs) OVER (),2) pct_time
+  FROM v$asm_diskgroup_stat dg
+      JOIN v$asm_disk_stat d ON (d.group_number = dg.group_number)
+  JOIN (SELECT group_number, disk_number disk_number, SUM(reads) reads,
+                 SUM(writes) writes, ROUND(SUM(read_time), 2) read_secs,
+               ROUND(SUM(write_time), 2) write_secs
+             FROM gv$asm_disk_stat
+         WHERE mount_status = 'CACHED'
+         GROUP BY group_number, disk_number) ds
+           ON (ds.group_number = d.group_number
+            AND ds.disk_number = d.disk_number)
+    WHERE dg.name = '&diskgroup_name'
+   AND d.mount_status = 'CACHED'
+    ORDER BY d.PATH;
+
+Important ASM views:
+desc v$ASM_DISKGROUP;
+what are the diifferent group devices ,sizes, how much space left etc
+desc v$asm_client;
+ desc v$asm_disk;
+desc v$asm_alias;
+desc v$asm_file;
+desc v$asm_operation 
+
+
+
+
+----------------------------------------------------------------------------------------------
+How To Add a New Disk(s) to An Existing Diskgroup on RAC (Best Practices). [ID 557348.1]
+----------------------------------------------------------------------------------------------
+
+---Diskgroup status/version
+select name, state, round(total_mb/1024,2) Total_GB, round(free_mb/1024,2) Free_GB,
+        round(free_mb/total_mb*100,2) pct_Free, allocation_unit_size/1024/1024 AU, compatibility, database_compatibility
+	from v$asm_diskgroup where total_mb > 1;
+-----
+
+select group_number,disk_number,mount_status,total_mb  from v$asm_disk;
+select group_number,name,total_mb,free_mb from v$asm_diskgroup;
+
+column path format a15
+column LABEL format a8
+column NAME format a5
+select group_number,disk_number,mount_status,total_mb,path,label,name  from v$asm_disk;
+
+column name format a10
+column PATH format a27
+select NAME,PATH,LABEL from v$asm_disk;
+
+COL % FORMAT 99.0
+SELECT name, free_mb, total_mb, free_mb/total_mb*100 "%" FROM v$asm_diskgroup;
+select group_number,name,total_mb,free_mb from v$asm_diskgroup;
+
+*********************************
+--list current disk group configuration
+column DISK_FILE_PATH format a10
+break on DISK_GROUP_NAME
+SELECT
+    NVL(a.name, '[CANDIDATE]')      disk_group_name
+  , b.path                          disk_file_path
+  , b.name                          disk_file_name
+--  , b.failgroup                     disk_file_fail_group
+FROM
+    v$asm_diskgroup a RIGHT OUTER JOIN v$asm_disk b USING (group_number) ORDER BY a.name;
+
+***************************************************************************************************
+Identify Candidate Disks
+
+The current disk group configuration, (TESTDB_DATA1 and candidate disks not assigned to any disk group) has the following configuration:
+
+
+$ ORACLE_SID=+ASM; export ORACLE_SID
+$ sqlplus "/ as sysdba"
+
+column disk_file_path format a20
+SELECT
+    NVL(a.name, '[CANDIDATE]')      disk_group_name
+  , b.path                          disk_file_path
+  , b.name                          disk_file_name
+  , b.failgroup                     disk_file_fail_group
+FROM
+    v$asm_diskgroup a RIGHT OUTER JOIN v$asm_disk b USING (group_number)
+ORDER BY
+    a.name;
+
+Disk Group Name Path            File Name            Fail Group     
+--------------- --------------- -------------------- ---------------
+TESTDB_DATA1    /dev/raw/raw1   TESTDB_DATA1_0000    CONTROLLER1
+                /dev/raw/raw2   TESTDB_DATA1_0001    CONTROLLER1
+                /dev/raw/raw3   TESTDB_DATA1_0002    CONTROLLER2
+                /dev/raw/raw4   TESTDB_DATA1_0003    CONTROLLER2
+
+[CANDIDATE]     /dev/raw/raw5
+                /dev/raw/raw6
+                /dev/raw/raw7
+***************************************************************************************************
+--Find Free space per disk
+col name for a15
+col path for a20
+set lines 122 pages 66
+col AU for 9 hea 'AU|MB'
+col state for a12
+col compatibility for a10 hea 'ASM|Compat'
+col database_compatibility for a10 hea 'Database|Compat'
+col pct_Free for 99.99 head 'Pct|Free'
+col block_size for 99,999 head 'Block|Size'
+col Total_GB for 999,999.99 head 'Total|GB'
+col Free_GB for 999,999.99 head 'Free|GB'
+ 
+col pct_free for 999 hea 'Pct|Free'
+select name, path, total_mb, free_mb, round(free_mb/total_mb*100,2) pct_Free from v$asm_disk where total_mb >1 order by name;
+
+***************************************************************************************************
+col name format a25
+select name, group_number, alias_directory,system_created from v$asm_alias;
+
+select group_number,name,total_mb,free_mb from v$asm_diskgroup;
+
+GROUP_NUMBER NAME            TOTAL_MB    FREE_MB
+------------ --------------- -------- ----------
+           1 ASM_DISK_GRP       51195       8740
+
+***************************************************************************************************
+#### Run the following SQL from ASM and the Instance and record the Data col path format a30 col label format a15 col name format a15 col group_number format 99999 col disk_number format 99999 col total_mb format 99999 set linesize 120
+
+select group_number,disk_number,total_mb,path,label,name  from v$asm_disk;
+
+From the Instance:
+
+select group_number,disk_number,total_mb,path,label,name  from v$asm_disk;
+
+GROUP_NUMBER DISK_NUMBER TOTAL_MB PATH                           LABEL           NAME
+------------ ----------- -------- ------------------------------ --------------- ---------------
+           1           0    10239 ORCL:ASM1                      ASM1            ASM1
+           1           1    10239 ORCL:ASM2                      ASM2            ASM2
+           1           2    10239 ORCL:ASM3                      ASM3            ASM3
+           1           3    10239 ORCL:ASM4                      ASM4            ASM4
+           1           4    10239 ORCL:ASM5                      ASM5            ASM5
+
+
+export ORACLE_SID=+ASM1
+set linesize 2000
+SELECT V.GROUP_NUMBER, V.NAME, V.SECTOR_SIZE, V.BLOCK_SIZE, V.ALLOCATION_UNIT_SIZE, V.STATE, V.TYPE, V.TOTAL_MB, V.FREE_MB
+	FROM SYS.V$ASM_DISKGROUP V;
+
+GROUP_NUMBER NAME                           SECTOR_SIZE BLOCK_SIZE ALLOCATION_UNIT_SIZE STATE       TYPE     TOTAL_MB    FREE_MB
+------------ ------------------------------ ----------- ---------- -------------------- ----------- ------ ---------- ----------
+           1 DATA                           512       	4096              	1048576 MOUNTED     EXTERN     204186     137965
+           2 LOGS                           512       	4096              	1048576 MOUNTED     EXTERN     204186     203715
+
+From the database instance:
+SQL> select group_number,disk_number,total_mb,path,label,name  from v$asm_disk;
+
+GROUP_NUMBER DISK_NUMBER TOTAL_MB PATH                           LABEL           NAME
+------------ ----------- -------- ------------------------------ --------------- ---------------
+           1           5    10239 ORCL:ASM6                      ASM6            ASM6
+           1           6    10239 ORCL:ASM7                      ASM7            ASM7
+           1           7    10239 ORCL:ASM8                      ASM8            ASM8
+           1           8    10239 ORCL:ASM9                      ASM9            ASM9
+           1           9    10239 ORCL:ASM10                     ASM10           ASM10
+
+
+***************************************************************************************************
+ASM OS level commands
+
+--stop/start ASM at os level
+/etc/init.d/oracleasm stop/start   --as root
+
+rpm -qa | grep oracleasm   
+/usr/sbin/oracleasm status
+      
+ls -al /dev/oracleasm/disks
+/etc/init.d/oracleasm listdisks
+
+cat /etc/sysconfig/oracleasm
+	ORACLEASM_SCANORDER="dm"
+
+/usr/sbin/oracleasm-discover 'ORCL:*'          -- To discover ASM disks starting with ORCL
+
+/etc/init.d/oracleasm querydisk -d ASM2    - Query details about ASM2 disk
+oracleasm querydisk -p ASM1  
+
+cat /etc/sysconfig/oracleasm  
+                                        # ORACLEASM_SCANORDER: Matching patterns to order disk scanning 
+                                            ORACLEASM_SCANORDER="dm"
+
+                                        # ORACLEASM_SCANEXCLUDE: Matching patterns to exclude disks from scan
+                                            ORACLEASM_SCANEXCLUDE="sd"
+
+$ASM_HOME/bin/kfod asm_diskstring='ORCL:*' disks=all
+$ASM_HOME/bin/kfod disks=all
+
+***************************************************************************************************
+
+---Add Disk to ASM DG
+
+ALTER DISKGROUP PRDWEU1 ADD DISK 'ORCL:ASM3';
+ALTER DISKGROUP PRDWEU1 ADD DISK 'ORCL:ASM5';
+ALTER DISKGROUP PRDWEU1 ADD DISK 'ORCL:ASM6';
+Diskgroup altered.
+
+---LDC Staging 
+alter diskgroup STGWEU1 add DISK 
+	'/dev/oracleasm/disks/ASM11' NAME  ASM11,
+	'/dev/oracleasm/disks/ASM21' NAME  ASM21,
+	'/dev/oracleasm/disks/ASM22' NAME  ASM22,
+	'/dev/oracleasm/disks/ASM23' NAME  ASM23,
+	'/dev/oracleasm/disks/ASM24' NAME  ASM24,
+	'/dev/oracleasm/disks/ASM25' NAME  ASM25,
+	'/dev/oracleasm/disks/ASM26' NAME  ASM26,
+	'/dev/oracleasm/disks/ASM27' NAME  ASM27;
+
+
+ALTER DISKGROUP ASM_DISK_GRP ADD DISK
+     'ORCL:ASM6' NAME ASM6,
+     'ORCL:ASM7' NAME ASM7,
+     'ORCL:ASM8' NAME ASM8,
+     'ORCL:ASM9' NAME ASM9,
+     'ORCL:ASM10' NAME ASM10;
+
+***************************************************************************************************
+Drop ASM disk from DG
+
+ALTER DISKGROUP ASM_DISK_GRP
+  DROP DISK ASM1, ASM2, ASM3, ASM4, ASM5 REBALANCE POWER 11;
+		--- To have sqlplus not return to you after running the alter diskgroup command you would #### add WAIT to the end.
+***************************************************************************************************
+
+SQL>  select * from v$asm_operation;
+
+GROUP_NUMBER OPERA STAT      POWER     ACTUAL      SOFAR   EST_WORK   EST_RATE EST_MINUTES
+------------ ----- ---- ---------- ---------- ---------- ---------- ---------- -----------
+           1 REBAL RUN           1          1      11895      21431       3449           2
+
+
+---orc01/02 ASM disk LR on 11/15/2012
+
+Linux:
+/etc/init.d/oracleasm listdisks 
+ cat /etc/sysconfig/oracleasm
+ ls -l /dev/oracleasm/disks
+ ls -l /etc/sysconfig/oracleasm*
+ select inst_id,HEADER_STATUS,STATE,NAME,path,LIBRARY from gv$asm_disk;
+    if Header_Status is 'UNKNOWN' modify /etc/sysconfig/oracleasm file for ASM_SCANORDER and ASM_SCAMEXCLUDE parameters values and restart ASMLib
+	/etc/sysconfig/oracleasm 
+	# ORACLEASM_SCANORDER: Matching patterns to order disk scanning
+	ORACLEASM_SCANORDER="dm-"
+
+	# ORACLEASM_SCANEXCLUDE: Matching patterns to exclude disks from scan
+	ORACLEASM_SCANEXCLUDE="sd"
+	
+alter diskgroup LABDG add disk 'ORCL:ASM4';
+alter diskgroup LABDG add disk 'ORCL:ASM5';
+alter diskgroup LABDG add disk 'ORCL:ASM6';
+
+alter diskgroup LABDG drop disk 'ASM1';
+alter diskgroup LABDG drop disk 'ASM2';
+alter diskgroup LABDG drop disk 'ASM3';
+
+select * from v$asm_operation;
+---end---
+
+#### Remove old ASM volumes as root
+
+service oracleasm deletedisk ASM1
+service oracleasm deletedisk ASM2
+service oracleasm deletedisk ASM3
+service oracleasm deletedisk ASM4
+service oracleasm deletedisk ASM5
+
+
+---Find ASM Diskgroups
+
+SQL> select GROUP_NUMBER, name,total_mb from v$asm_diskgroup;
+
+GROUP_NUMBER NAME                        TOTAL_MB
+------------ ------------------------- ----------
+           1 PRDAP1DG                       61416
+           2 PRDIN1DG                       30708
+           3 PRDMY1DG                       30708
+           4 PRDPH1DG                       61416
+           5 PRDSG1DG                       30708
+
+--Find Disks allocated to diskgroup
+
+SQL> select GROUP_NUMBER,DISK_NUMBER,LABEL,NAME,MODE_STATUS,STATE,MOUNT_STATUS,MODE_STATUS,STATE,HEADER_STATUS from  v$asm_disk where GROUP_NUMBER=2  order by disk_number;
+
+GROUP_NUMBER DISK_NUMBER LABEL       NAME                      MODE_ST STATE    MOUNT_S MODE_ST STATE    HEADER_STATU
+------------ ----------- ----------- ------------------------- ------- -------- ------- ------- -------- ------------
+           2           0 ASM7        ASM7                      ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           2           1 ASM8        ASM8                      ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER
+           2           2 ASM9        ASM9                      ONLINE  NORMAL   CACHED  ONLINE  NORMAL   MEMBER

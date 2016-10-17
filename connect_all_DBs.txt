@@ -1,0 +1,143 @@
+#!/bin/ksh
+
+# ##################################################################################
+# Script Name: sqlall.ksh
+#
+# Usage: This script is used to run the same SQL statement(s) on
+#  More than one DB instance from a centralized server.
+#
+# Requirements: 
+#   - The centralized server should have all the tnsnames    for all the DB instances.
+#   - This script uses a configuration file with the list of servers,DBS
+#      and user/pwd to be used during the sql run (ALLSERVERS). See below.
+#
+# Syntax : sqlall.ksh sql_script.sql server_name(s)_pattern
+#
+# To send the output logs to your email, please change the variable DBA_EMAIL
+# #################################################################################
+
+# Oracle Env Parametes
+ export ORACLE_SID=`grep -i "ORACLE_SID=" /home/oracle/.profile | awk -F'=' '{print $2}'`
+# Script Parameters
+ export BASEDIR=/home/oracle/dba/deploy
+ export LOGDIR=$BASEDIR/log
+ export SQL_DIR=/home/oracle/dba/deploy/sql
+
+# Change before run
+ export DBA_EMAIL=oracleDBAemail@mkcorp.com
+
+# Usage Desc and Check
+USAGE="usage: $0 sql_script server_name_pattern \n"
+if [ $# -ne 2 ]
+then
+        echo "$0: error: incorrect arguments...\n"
+        echo $USAGE
+        exit 1
+fi
+
+if [ ! -f ${SQL_DIR}/$1 ]
+then
+      echo " ${SQL_DIR}/$1 file is not found ...\n"
+      exit 1
+fi
+
+SQL_SCRIPT=$1
+SERVERS=$2
+
+DICTFILE=${BASEDIR}/ALLSERVERS
+
+
+export LOG=${LOGDIR}/$SQL_SCRIPT.log
+
+>$LOG
+
+# Clear the screen and display the sql script
+
+clear scr
+echo =======================
+echo Script : ${SQL_SCRIPT}
+echo contains ...
+echo
+head -1 ${SQL_DIR}/${SQL_SCRIPT}
+echo =======================
+echo
+
+# Dsiplay the DB names affected.
+echo Databases affected are :
+for db in `grep -v "^#" $DICTFILE | grep "${SERVERS}" `
+do
+
+ ENVIR=`grep -i "${db}" $DICTFILE | awk -F':' '{print $1}'`
+ HOSTNAME=`grep -i "${db}" $DICTFILE | awk -F':' '{print $2}'`
+ IPADDRESS=`grep -i "${db}" $DICTFILE | awk -F':' '{print $3}'`
+ DB_NAME=`grep -i "${db}" $DICTFILE | awk -F':' '{print $4}'`
+ USERNAME=`grep -i "${db}" $DICTFILE | awk -F':' '{print $5}'`
+ USERPWD=`grep -i "${db}" $DICTFILE | awk -F':' '{print $6}'`
+
+ echo ${ENVIR} : $HOSTNAME : $IPADDRESS : $DB_NAME : $USERNAME
+done
+
+# Confirm if you need to run agains the above list of DBs
+echo =======================
+echo "Continue [Y/N] [N]? \c"
+ANS=N
+read ANS
+if [ "${ANS}" = "N" ]
+then
+exit;
+fi
+
+# Run the sql script on all the confirmed list of DBs
+
+if [ "${ANS}" = "Y" ] || [ "${ANS}" = "y" ]
+then
+for db in `grep -v "^#" $DICTFILE | grep  "${SERVERS}" `
+do
+ HOSTNAME=`grep -i "${db}" $DICTFILE | awk -F':' '{print $2}'`
+ IPADDRESS=`grep -i "${db}" $DICTFILE | awk -F':' '{print $3}'`
+ DB_NAME=`grep -i "${db}" $DICTFILE | awk -F':' '{print $4}'`
+ USERNAME=`grep -i "${db}" $DICTFILE | awk -F':' '{print $5}'`
+ USERPWD=`grep -i "${db}" $DICTFILE | awk -F':' '{print $6}'`
+
+ export DB_LOG=${LOGDIR}/${HOSTNAME}_${DB_NAME}.out
+ echo ============================================================ > $DB_LOG
+ echo RUN this script $SQL_SCRIPT on $HOSTNAME:$IPADDRESS : $DB_NAME >> $DB_LOG
+ echo ============================================================ >> $DB_LOG
+ echo $HOSTNAME : $DB_NAME : $USERNAME
+ sqlplus -s ${USERNAME}/${USERPWD}@${DB_NAME} @${SQL_DIR}/${SQL_SCRIPT} >> $DB_LOG
+
+ cat $DB_LOG >> $LOG
+done
+
+# Send email to DBA address.
+mailx -s "${SQL_SCRIPT}" < $LOG  $DBA_EMAIL
+fi
+# EOF 
+# ---------------------------------------------------------------------
+
+# ---------------------------------------------------------------------
+# config file:
+# DB Server info Config file for sqlall.ksh script
+# Format:
+# Environment:servername:ipaddress:dbnameintnsnames.ora:dbuser:dbuserpassword
+#
+#Auther: Laith Hussein
+#
+#:::: DEV
+DEV:servername1:ip_address:dbname:dbuser:passwd
+DEV:servername2:ip_address:dbname:dbuser:passwd
+DEV:servername3:ip_address:dbname:dbuser:passwd
+DEV:servername4:ip_address:dbname:dbuser:passwd
+DEV:servername5:ip_address:dbname:dbuser:passwd
+DEV:servername6:ip_address:dbname:dbuser:passwd
+DEV:servername7:ip_address:dbname:dbuser:passwd
+#:::: PROD
+PROD:servername1:ip_address:dbname:dbuser:passwd
+PROD:servername2:ip_address:dbname:dbuser:passwd
+PROD:servername3:ip_address:dbname:dbuser:passwd
+PROD:servername4:ip_address:dbname:dbuser:passwd
+PROD:servername5:ip_address:dbname:dbuser:passwd
+PROD:servername6:ip_address:dbname:dbuser:passwd
+PROD:servername7:ip_address:dbname:dbuser:passwd
+# EOF 
+# ---------------------------------------------------------------------

@@ -1,0 +1,26 @@
+SQL>  select target_name from mgmt_targets where target_type='oracle_emd';
+ 
+TARGET_NAME
+--------------------------------------------------------------------------------
+uadcbporc81:3872
+uddcbddev06:3872
+uddcbddev09:3872
+uddcbddev12:3872
+uddcbddev14:3872
+uddcbddev15:3872
+uddcbddev17:3872
+uddcbddev18:3872
+uddcbddev19:3872
+uddcbporc01:3872
+uddcbporc03:3872
+uddcbporc04:3872
+uddcbporc05:3872
+uddcbprac02:1830
+uddcbprac02:3872
+uddcbprac03:1830
+uddcbprac03:3872
+vddcbpoem01:3872
+ 
+18 rows selected
+ 
+SQL> exec mgmt_admin.cleanup_agent('uddcbporc05:3872');

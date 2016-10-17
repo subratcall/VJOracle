@@ -1,0 +1,2 @@
+/admin/dba/scripts/netbackup/netbackup_rman.ksh prdhksm1 arch full unmkbapp05 vorcbk1prdhksm1
+Archive Job: Nb_DDC4B_Ora_Prod_Arch_01_d_prdinf1

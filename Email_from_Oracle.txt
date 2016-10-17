@@ -1,0 +1,148 @@
+CREATE OR REPLACE PROCEDURE SP_SendMail(
+ sender      IN VARCHAR2,
+ recipient   IN VARCHAR2,
+ ccrecipient IN VARCHAR2,
+ subject     IN VARCHAR2,
+ message     IN VARCHAR2)
+AS
+-- mailhost VARCHAR2 (30) := 'vmsg31.mkcorp.com';
+-- mailhost VARCHAR2 (30) := 'w2mrdmsg40.eeu.mkcorp.com';
+ mailhost VARCHAR2 (30) := 'vcorpmsg01.mkcorp.com';
+ mail_conn UTL_SMTP.CONNECTION;
+ crlf VARCHAR2(2) := CHR (13) || CHR (10);
+ l_message_2  VARCHAR2(4000) := message;
+ l_message_1 LONG;
+ FUNCTION AttachBracket (paramter_str IN VARCHAR2)
+    RETURN VARCHAR2
+IS
+
+BEGIN
+  RETURN '<' || paramter_str || '>';
+ END AttachBracket;
+
+BEGIN
+     mail_conn := UTL_SMTP.OPEN_CONNECTION (mailhost, 25);
+     l_message_1 :=
+       'DATE: ' || TO_CHAR( SYSDATE)|| CRLF ||
+       'FROM: ' || SENDER || CRLF ||
+       'TO: ' || RECIPIENT || CRLF ||
+       'CC: ' || ccrecipient ||  CRLF ||
+       'SUBJECT: '|| SUBJECT || CRLF || CRLF || l_message_2;
+     UTL_SMTP.HELO (mail_conn, mailhost);
+     UTL_SMTP.MAIL (mail_conn, AttachBracket(SENDER));
+     UTL_SMTP.RCPT (mail_conn, AttachBracket(RECIPIENT));
+-- Carbon copy
+
+     IF CCRECIPIENT IS NOT NULL THEN
+      UTL_SMTP.RCPT (mail_conn,ccrecipient);
+     END IF;
+
+     UTL_SMTP.DATA(mail_conn,  l_message_1 );
+     UTL_SMTP.QUIT (mail_conn);
+END SP_sendMail;
+
+-----------------------------------------------------------
+---Usage of proc
+
+exec system.sp_sendmail('TSTLIMS2@mkcorp.com' ,'vijay.unniparambath@mkcorp.com','vijay.unniparambath@mkcorp.com','Segment info',select sysdate from dual)
+---------------------------------------------------------------------------------------
+
+
+UTL_MAIL SETUP: Oracle 10g
+
+QL> nect / as sysdba
+Connected.
+SQL> @utlmail
+
+Package created.
+
+
+Synonym created.
+
+SQL> @prvtmail.plb
+ GRANT EXECUTE ON UTL_MAIL TO system;
+ GRANT EXECUTE ON UTL_MAIL TO oracle;
+
+SQL> show parameter smtp
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+smtp_out_server                      string      vmsg31.mkcorp.com
+
+
+CREATE OR REPLACE PROCEDURE send_email_attach AS
+
+   fHandle utl_file.file_type; 
+   vTextOut varchar2(32000); 
+   text varchar2(32000) := NULL;
+  
+   BEGIN  
+
+   fHandle := UTL_FILE.FOPEN('/ora_db/tstlims2/admin/sql','rset_table_info.html','r');
+
+   IF UTL_FILE.IS_OPEN(fHandle) THEN
+     DBMS_OUTPUT.PUT_LINE('File read open');
+   ELSE
+     DBMS_OUTPUT.PUT_LINE('File read not open');
+   END IF;
+  
+   loop
+     begin
+     UTL_FILE.GET_LINE(fHandle,vTextOut);
+   IF text IS NULL THEN
+    text := text || vTextOut;
+   ELSE
+    text := text || UTL_TCP.CRLF || vTextOut;
+   END IF;
+     --  dbms_output.put_line(length(text));
+     EXCEPTION
+       WHEN NO_DATA_FOUND THEN EXIT;
+     end;
+   END LOOP;     
+
+   --dbms_output.put_line(length(text));
+
+   UTL_FILE.FCLOSE(fHandle);
+  
+   UTL_MAIL.SEND_ATTACH_VARCHAR2(sender => 'tstlims2@mkcorp.com', recipients => 'vijay.unniparambath@mkcorp.com', subject => 'RSET table/index size', message => 'Please see attachment', attachment => text, ATT_INLINE => FALSE,mime_type => 'text/html; charset=us-ascii');  
+   EXCEPTION
+     WHEN OTHERS THEN
+     --  dbms_output.put_line('Fehler');
+    raise_application_error(-20001,'The following error has occured: ' || sqlerrm);   
+   END;
+
+   SHOW ERRORS  
+  
+   exec send_email_attach  
+---------------------------------------------------------------------------------------
+
+
+exec utl_mail.send(sender => 'TSTLIMS2@mkcorp.com', recipients => 'vijay.unniparambath@mkcorp.com',  subject => 'Testing utl_mail',  message => 'The receipt of this email means that send mail works for UTL_MAIL ');
+
+------
+
+IF n_ROWS_UPDATED = 1 then
+    DELETE ITEM_QUEUE WHERE SEQ_NO = C_SEQNO;
+
+    n_ROWS_DELETED := SQL%ROWCOUNT;
+
+  commit;
+
+elsif n_ROWS_UPDATED = 0 then
+    system.sp_sendmail(
+              sender => c_sender ,
+              recipient => c_recipient,
+              ccrecipient => c_ccrecipient,
+              subject => V_email_subject,
+              message =>'No record found in ICS_'||trim(whouse)||'.'||'FDITMFIL for item: '||C_ITEM|| ', SEQ_NO:'||C_SEQNO
+           );
+ else
+     system.sp_sendmail(
+              sender => c_sender ,
+              recipient => c_recipient,
+              ccrecipient => c_ccrecipient,
+              subject => V_email_subject,
+              message =>'More than one record found in FDITMFIL for item: '||C_ITEM
+           );
+    rollback;
+END IF;

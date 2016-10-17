@@ -1,0 +1,66 @@
+
+export NLS_LANG=american_america.UTF8  -- Database character set
+export NLS_DATE_FORMAT='Mon DD YYYY HH24:MI:SS'
+Change Target pfile db_name to source db_name 
+copy last backedup control file to target controlfile destination. 
+(Refer: http://teammk/IST/Teams/BTS/DataInfraServices/Oracle/Shared%20Documents/Backup_Restore/Restore%20Oracle%20backups_GUI.doc)
+
+
+startup mount;
+
+run{
+allocate channel a2 type 'SBT_TAPE';
+allocate channel a1 type 'SBT_TAPE';
+send 'NB_ORA_CLIENT=vorcbk1prdhyp1,NB_ORA_SERV=unmkbapp05';
+set newname for datafile 1 to '/ora_db/devhyp1/sys/system_01.dbf';
+set newname for datafile 2 to '/ora_db/devhyp1/undo01/undo_01.dbf';
+set newname for datafile 3 to '/ora_db/devhyp1/dat01/users_01.dbf';
+set newname for datafile 4 to '/ora_db/devhyp1/dat01/hyp_adminservice_01.dbf';
+set newname for datafile 5 to '/ora_db/devhyp1/dat01/hyp_analyzer_01.dbf';
+set newname for datafile 6 to '/ora_db/devhyp1/dat01/hyp_bus_rules_01.dbf';
+set newname for datafile 7 to '/ora_db/devhyp1/dat01/hyp_hub_01.dbf';
+set newname for datafile 8 to '/ora_db/devhyp1/dat01/hyp_integration_server_01.dbf';
+set newname for datafile 9 to '/ora_db/devhyp1/dat01/hyp_planning_01.dbf';
+set newname for datafile 10 to '/ora_db/devhyp1/dat01/hyp_psys_01.dbf';
+set newname for datafile 11 to '/ora_db/devhyp1/dat01/hyp_reports_01.dbf';
+set newname for datafile 12 to '/ora_db/devhyp1/dat01/perfstat_data_01.dbf';
+set newname for datafile 13 to '/ora_db/devhyp1/dat01/biplus_01.dbf';
+set newname for datafile 14 to '/ora_db/devhyp1/dat01/aas_01.dbf';
+set newname for datafile 15 to '/ora_db/devhyp1/dat01/hfm_01.dbf';
+set newname for datafile 16 to '/ora_db/devhyp1/dat01/planapp1_01.dbf';
+set newname for datafile 17 to '/ora_db/devhyp1/dat01/hyp_wl_data_01.dbf';
+set newname for datafile 18 to '/ora_db/devhyp1/dat01/hyp_wl_work_01.dbf';
+set newname for datafile 19 to '/ora_db/devhyp1/sys/sysaux_01.dbf';
+sql "alter database rename file ''/ora_db/prdhyp1/r01/redog1m1.log'' to ''/ora_db/devhyp1/r01/redog1m1.log''";
+sql "alter database rename file ''/ora_db/prdhyp1/r02/redog1m2.log'' to ''/ora_db/devhyp1/r02/redog1m2.log''";
+sql "alter database rename file ''/ora_db/prdhyp1/r01/redog2m1.log'' to ''/ora_db/devhyp1/r01/redog2m1.log''";
+sql "alter database rename file ''/ora_db/prdhyp1/r02/redog2m2.log'' to ''/ora_db/devhyp1/r02/redog2m2.log''";
+sql "alter database rename file ''/ora_db/prdhyp1/r01/redog3m1.log'' to ''/ora_db/devhyp1/r01/redog3m1.log''";
+sql "alter database rename file ''/ora_db/prdhyp1/r02/redog3m2.log'' to ''/ora_db/devhyp1/r02/redog3m2.log''";
+sql "alter database rename file ''/ora_db/prdhyp1/r01/redog4m1.log'' to ''/ora_db/devhyp1/r01/redog4m1.log''";
+sql "alter database rename file ''/ora_db/prdhyp1/r02/redog4m2.log'' to ''/ora_db/devhyp1/r02/redog4m2.log''";
+set until time  'Apr 03 2010 04:03:40';  -- Replace this with backup startup time or few minutes into backup.
+restore database check readonly ;
+switch datafile all;
+recover database check readonly ;
+alter database open RESETLOGS;
+release channel a2;
+release channel a1;
+}
+
+--Create controlfile or use nid utility to change database name
+--For NID
+SHUTDOWN IMMEDIATE
+STARTUP MOUNT
+nid target='sys as sysdba' DBNAME=DEVHYP1
+---recreate password file
+orapwd file=orapwdevph1 entries=5 password=
+SHUTDOWN IMMEDIATE
+STARTUP MOUNT
+ALTER SYSTEM SET DB_NAME=TSH2 SCOPE=SPFILE;  -- Change db_name in init.ora
+SHUTDOWN IMMEDIATE
+STARTUP MOUNT
+alter database open RESETLOGS;
+
+alter tablespace temp add tempfile '/ora_db/devhyp1/tmp01/temp_01.dbf' size 400M reuse;
+alter database rename global_name to devhyp1;

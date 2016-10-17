@@ -1,0 +1,17 @@
+begin
+dbms_logmnr.add_logfile(logfilename=>'+DATA/orcl/archivelog/2011_06_30/thread_1_seq_400.522.755203825',
+options=>dbms_logmnr.new);
+end;
+/
+ 
+begin
+dbms_logmnr.start_logmnr(options=>dbms_logmnr.dict_from_online_catalog);
+end;
+/
+select substr(sql_redo,0,100), count(*) from v$logmnr_contents
+group by substr(sql_redo,0,100);
+ 
+begin
+dbms_logmnr.end_logmnr();
+end;
+/

@@ -1,0 +1,89 @@
+create or replace procedure oraadmin.sp_job_state_check( p_job                 integer                                                   -- job ID
+                                                        , p_threshold           integer         default 30                                -- run period in minutes
+                                                        , p_mailto              varchar2        default 'andrey.dekanovich@mkcorp.com'    -- default notification email
+                                                        )
+as
+--declare 
+  v_message     varchar2(4096)    := '';
+begin
+    --
+    -- This procedure is kind of sanity check of particular job.
+    -- it checks if a given job (job_id) is executed within last 20 mniues and is running for not more than 20 minutes.
+    -- Created by Andrey Dekanovich
+    --
+    -- Changelog
+    --      29-Apr-2011           Created by andrey dekanovich.
+    -- 
+    -- (C) MK Corp
+    
+    -- Job running time check
+    for p_job_rec in          ( select j.job
+                                     , j.what
+                                     , jr.this_date started
+                                     , trunc((sysdate-jr.this_date)*24*60)       running_min
+                                     , jr.sid
+                                     , s.serial#
+                                     , sq.sql_text
+                                     , sw.event
+                                     , sw.p1
+                                     , sw.p1raw
+                                     , sw.p2
+                                     , sw.p2raw
+                                     --, sq.*
+                                  from sys.dba_jobs_running       jr
+                                  join sys.dba_jobs               j
+                                    on jr.job=j.job
+                             left join sys.v_$session              s
+                                    on jr.sid=s.sid
+                             left join sys.v_$sql                  sq
+                                    on sq.address=s.sql_address              
+                                   and sq.child_number=0
+                             left join sys.v_$session_wait         sw
+                                    on s.sid=sw.sid       
+                            where trunc((sysdate-jr.this_date)*24*60)>p_threshold   -- threshold check
+                              --and j.what='some code';                               -- job code check
+                              and j.job=p_job
+                                                        ) loop
+                                    
+        dbms_output.put_line('Spotted: '||TO_CHAR(p_job_rec.job));
+        
+        v_message:=v_message||chr(10)
+                        ||'Job '||TO_CHAR(p_job_rec.job) 
+                        || ' is running for ' || TO_CHAR(p_job_rec.running_min)||' minute(s).'|| chr(10) || chr(13)
+                        || ' Job code:''' || p_job_rec.what || chr(10) || chr(13)
+                        || ' Session: ' || NVL(p_job_rec.sid || ':' || p_job_rec.serial#,'<UNKNOWN>') 
+                        || ', running sql : ''' || NVL(p_job_rec.sql_text,'<UNKNOWN>') || '''' 
+                        || ', waiting for: ' || NVL(p_job_rec.event,'<UNKNOWN>') || chr(10) || chr(13);
+
+        oraadmin.pkg_email.sp_send_plain_message( p_mailto
+                                                , 'WARNING Job ' ||  TO_CHAR(p_job_rec.job) || ' is running more than ' || TO_CHAR(p_threshold) ||' minutes detected!'
+                                                , v_message);
+                                    
+    end loop;
+    
+    -- Job launch time checks
+    for p_job_rec in          (  select job
+                                       , last_date
+                                       , broken
+                                       , failures
+                                       , round((sysdate-last_date)*24*60)   running_min
+                                    from sys.dba_jobs
+                                   where round((sysdate-last_date)*24*60)>p_threshold
+                                     and this_date is null
+                                     and job=p_job
+                               ) loop
+                                    
+        dbms_output.put_line('Spotted: '||TO_CHAR(p_job_rec.job));
+        
+        v_message:=chr(10) ||'Job '||TO_CHAR(p_job_rec.job) 
+                           || ' did not run for ' || TO_CHAR(p_job_rec.running_min)||' minute(s).'|| chr(10) || chr(13)
+                           || ' Broken: ' || TO_CHAR(p_job_rec.broken)||' Failures:' || TO_CHAR(p_job_rec.failures) || chr(10) || chr(13);
+
+        oraadmin.pkg_email.sp_send_plain_message( p_mailto
+                                                , 'WARNING Job ' ||  TO_CHAR(p_job_rec.job) || ' did not run for more than ' || TO_CHAR(p_threshold) ||' minutes!'
+                                                , v_message);
+                                    
+    end loop;
+    
+    --dbms_output.put_line(v_message);
+end;

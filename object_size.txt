@@ -1,0 +1,37 @@
+#########################################################################
+## Sample report
+##TABLE_NAME                      ROW_COUNT   TBL_SIZE   IDX_SIZE     TTL_MB
+##------------------------------ ---------- ---------- ---------- ----------
+##CHANGE_HISTORY                          0        384        399        783
+##ITEM_HISTORY                          136        325        335        660
+##SC_ITEM                                 0        232        247        479
+##########################################################################
+select y.table_name
+     ,t.row_count
+     , x.tbl_size
+     , y.idx_size
+     , (tbl_size + idx_size) ttl_mb
+  from ( select table_name,
+                num_rows row_count
+           from dba_tables
+            where owner = 'AGILE') t
+  ,(select segment_name
+             , sum (bytes / 1024) / 1024 tbl_size
+             , segment_type
+          from dba_segments
+         where segment_type in ('TABLE')
+           and owner = 'AGILE'
+        group by segment_name, segment_type) x
+     , (select table_name
+             , sum (bytes / 1024) / 1024 idx_size
+             , segment_type
+          from dba_segments a
+             , dba_indexes b
+         where a.segment_type in ('INDEX')
+           and a.owner = 'AGILE'
+           and a.tablespace_name = b.tablespace_name
+           and a.segment_name = b.index_name
+          group by segment_type, table_name) y
+ where x.segment_name = y.table_name and t.table_name = x.segment_name
+ --  and (tbl_size + idx_size) > 1000
+order by tbl_size + idx_size desc;
