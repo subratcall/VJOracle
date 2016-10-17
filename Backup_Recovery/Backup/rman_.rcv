@@ -1,0 +1,4 @@
+run { 
+allocate channel d1 type disk; 
+allocate channel d2 type disk; 
+allocate channel d3 type disk; 

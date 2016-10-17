@@ -1,0 +1,18 @@
+RUN {
+  ALLOCATE CHANNEL ch1 TYPE 
+    DISK FORMAT 'J:\DB_Backup\VJ11G\VJ11G%d_DB_%u_%s_%p'; 
+    BACKUP DATABASE;
+    sql 'ALTER SYSTEM ARCHIVE LOG CURRENT';
+   backup archivelog all format 'J:\DB_Backup\VJ11G\VJ11G%d_ARCH_%u_%s_%p' delete input;
+  RELEASE CHANNEL ch1;
+}
+EXIT;
+
+
+RUN {
+  ALLOCATE CHANNEL ch1 TYPE 
+    DISK FORMAT 'J:\DB_Backup\VJ11G\VJ11G_ARC_%d_DB_%u_%s_%p'; 
+  BACKUP  ARCHIVELOG ALL DELETE INPUT;
+  RELEASE CHANNEL ch1;
+}
+EXIT;

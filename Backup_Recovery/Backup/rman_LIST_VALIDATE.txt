@@ -1,0 +1,40 @@
+
+--Validate RMAN backups
+restore database validate;
+restore archivelog from logseq 290 until logseq 300 validate;
+restore controlfile validate;
+restore spfile validate;
+
+--Point in time recovery test
+run {
+	set until time “to_date(’28/03/12 13:00:00' , ‘dd/mm/yy hh24:mi:ss’)”;
+	 restore database validate;
+       }
+
+
+REM  LIST ARCHIVELOG ALL;
+REM  LIST BACKUP OF ARCHIVELOG ALL;
+REM  LIST BACKUP;
+REM  LIST BACKUP OF DATABASE;
+REM  LIST BACKUP OF DATAFILE 1;
+REM  LIST BACKUP SUMMARY;
+REM  LIST INCARNATION;
+REM  LIST BACKUP BY FILE;
+REM  LIST COPY OF DATABASE ARCHIVELOG ALL;
+REM  LIST COPY OF DATAFILE 1, 2, 3;
+REM  LIST BACKUP OF DATAFILE 11 SUMMARY;
+REM  LIST expired Backup of archivelog all summary;
+REM  LIST Backup of tablespace Test summary;
+REM  LIST BACKUP OF ARCHIVELOG FROM SEQUENCE 1437;
+REM  LIST CONTROLFILECOPY “/tmp/cntrlfile.copy”;
+REM  LIST BACKUPSET OF DATAFILE 1;
+REM  LIST FAILURE;
+REM  LIST FAILURE 641231 detail;
+REM  LIST Backup of Controlfile;
+REM  LIST Backup of Spfile;
+REM  LIST Backup of Tablespace Test;
+REM  LIST expired Backup;
+REM  LIST expired Backup summary;
+REM  LIST expired Backup of Archivelog all;
+REM  LIST expired Backup of datafile 10;
+REM  LIST recoverable backup;

@@ -1,0 +1,111 @@
+
+Duplicate Database:
+RMAN has the ability to duplicate, or clone, a database from a backup or from an active database. 
+It is possible to create a duplicate database on a remote server with the same file structure, 
+a remote server will a different file structure or the local server with a different file structure.
+
+-----------------------------------------------------------------------------------------------------
+NOTE: Do not get confused TARGET and SOURCE parameter at RMAN level.
+	At RMAN level 	TARGET means the location from where database is refreshed from.
+					SOURCE means the location we're creating/refreshing into.
+-----------------------------------------------------------------------------------------------------
+Scenario:
+	Source:dutchpdb1 (Prod)
+		-- In archivelog mode
+		-- Set Controlfile autoback ON
+	Target:clonedb (Non-prod)
+-----------------------------------------------------------------------------------------------------
+
+At Source database level
+1) Backup production backup
+	rman target=/
+		BACKUP DATABASE PLUS ARCHIVELOG
+	
+All subsequent actions occur on the Target (non-prod) database server:	
+1) Create new database directories
+2) Create new init.ora file for new database
+3) Create service (only on windows)
+		set oracle_sid=CLONEDB1
+		oradim -NEW -SID CLONEDB1 -STARTMODE manual -PFILE "E:\oradata\clonedb1\admin\pfile\initclonedb1.ora"
+
+		4) set ORACLE_SID=CLONEDB1
+5) Create passwordfile
+    --Make sure to match target/source sys passwords to match.
+	C:\Users\oracle>orapwd file=C:\oracle\db_12rR1\database\orapwclonedb1.ora password=xxxxxx entries=5
+
+6) Add source and target tnsnames entries in tnsnames.ora file
+7) Configure listener for Target database
+8) Make sure Target database can be connected via sqlnet from source server.
+9) Add file_name convert parameter in init.ora
+	# Convert file names to allow for different directory structure 
+	DB_FILE_NAME_CONVERT='D:\oradata\dutchpdb1','E:\oradata\clonedb1'
+	LOG_FILE_NAME_CONVERT='D:\oradata\dutchpdb1','E:\oradata\clonedb1'
+		
+		FOR ASM
+		CONTROL_FILES=+DISK2,+DISK2
+		DB_FILE_NAME_CONVERT=+DISK1,+DISK2
+		LOG_FILE_NAME_CONVERT=+DISK1,DISK2
+	
+10) Try connecting to database as sysdba
+		sqlplus sys/password@clonedb1 as sysdba
+				--Attempt with "	(UR = A)" in tnsnames.ora if sqlplus connection do not go thru.
+
+11)	Start DB in NOMOUNT state
+		startup nomount pfile='E:\oradata\clonedb1\admin\pfile\initclonedb1.ora';
+		
+12) Clone Database	 
+	
+	From Active database
+		set ORACLE_SID=CLONEDB1
+		startup nomount pfile=E:\oradata\clonedb1\admin\pfile\initclonedb1.ora
+		rman TARGET sys/password@dutchpdb AUXILIARY sys/password@clonedb1 LOG clonedb1_from_prod.log
+	
+		run {
+		DUPLICATE DATABASE TO CLONEDB1 FROM ACTIVE DATABASE;
+			}	
+		or
+		
+		run {
+			DUPLICATE DATABASE TO CLONEDB1 FROM ACTIVE DATABASE
+			SPFILE  --copies Spfile from Source to Target
+			NOFILENAMECHECK; -- same filename and different host
+			}	
+	
+	From Backup
+		-- Target, but no catalog. Metadata comes from target database controlfile
+		rman TARGET sys/password@dutchpdb AUXILIARY /
+			DUPLICATE DATABASE TO CLONEDB1
+			
+		--No target or catalog. Metadata comes from backups	
+		rman AUXILIARY /
+		DUPLICATE DATABASE TO CLONEDB1 BACKUP LOCATION 'G:\backup\dutchpdb1\rman';
+		
+		-- Target and catalog. Metadata can come from the target controlfile or the catalog.
+			--Restores last backup
+		rman TARGET sys/password@dutchpdb CATALOG rman/password@rman-catalog AUXILIARY /
+		
+			--Point in Time Duplication from backup
+			DUPLICATE TARGET DATABASE TO CLONEDB1
+				UNTIL TIME 'SYSDATE-1' BACKUP LOCATION 'G:\backup\dutchpdb1\rman';
+			
+			OR
+			run
+			{
+				set until time "to_date('Jan 07 2014 08:00:00','Mon DD YYYY HH24:MI:SS')";
+				allocate auxiliary channel c1 type disk;
+				allocate auxiliary channel c2 type disk;
+				duplicate
+				target database to CLONEDB1
+				NOFILENAMECHECK
+							}
+	
+		
+13) Attached tempfile
+	 alter database tempfile 'E:\oradata\clonedb1\TEMP01.DBF' drop;
+	 alter tablespace temp add tempfile 'E:\oradata\clonedb1\TEMP01.DBF' reuse;
+	 
+	 
+	 
+			http://www.oracle-base.com/articles/11g/duplicate-database-using-rman-11gr2.php
+			
+			

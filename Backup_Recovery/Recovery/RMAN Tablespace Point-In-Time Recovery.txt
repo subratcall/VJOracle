@@ -1,0 +1,33 @@
+
+RMAN - Tablespace Point In Time Recovery
+
+SQL> create tablespace mytest datafile 'D:\oradata\dutchpdb1\testts.dbf' size 50M;
+Tablespace created.
+
+SQL> create table dbtables  tablespace mytest as select * from dba_tables;
+Table created.
+
+SQL> create table dbindexes tablespace mytest as select * from dba_indexes;
+Table created.
+
+SQL> drop tablespace mytest including contents and datafiles;
+Tablespace dropped.
+
+
+SQL> alter system switch logfile;
+
+System altered.
+
+SQL> select current_scn from v$database;
+CURRENT_SCN
+-----------
+    4027826
+	
+SQL> drop tablespace mytest including contents and datafiles;
+
+RMAN> run {
+		set newname for datafile 7 to 'D:\oradata\dutchpdb1\testts.dbf';
+		recover tablespace mytest
+		until scn 4027826
+		auxiliary destination 'D:\oradata\dutchpdb1';
+		}

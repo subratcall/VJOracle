@@ -1,0 +1,21 @@
+run { 
+allocate channel d1 type disk; 
+allocate channel d2 type disk; 
+allocate channel d3 type disk; 
+backup full format 'G:\backup\dutchpdb1\rman\FULL_dutchpdb1_t%t_s%s_p%p.db' database tag='full_backup';
+sql 'alter system archive log current'; 
+backup archivelog all format 'G:\backup\dutchpdb1\rman\ARC_dutchpdb1_t%t_s%s_p%p.arc' delete input ;
+backup current controlfile format 'G:\backup\dutchpdb1\rman\CTL_dutchpdb1_t%t_s%s_p%p.ctl';
+release channel d1; 
+release channel d2; 
+release channel d3; 
+} 
+allocate channel for maintenance type disk; 
+sql 'alter system archive log current'; 
+crosscheck backup; 
+crosscheck backup of archivelog all; 
+crosscheck backup of controlfile; 
+delete expired backup; 
+delete expired archivelog all; 
+release channel; 
+exit 

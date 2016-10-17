@@ -1,0 +1,18 @@
+RMAN Point-In-Time Recovery
+
+Set ORACLE_SID=DUTCHPDB1
+rman TARGET / NOCATALOG
+
+RMAN> shutdown immediate;
+RMAN> startup mount;
+RMAN> run
+		{
+		allocate channel c1 type disk;
+		allocate channel c2 type disk;
+		set until time "to_date('2014-02-09:20:55:35', 'yyyy-mm-dd:hh24:mi:ss')";
+		restore database;
+		recover database; 
+		}
+
+RMAN> alter database open resetlogs;
+
