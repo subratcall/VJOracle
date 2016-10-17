@@ -1,0 +1,518 @@
+Session Snapper
+If you want to just download Snapper, you can get it from here:
+
+    http://files.e2sn.com/scripts/snapper.sql
+
+However I recommend you to skim through the article to understand Snapper's capabilities and limitations better!
+
+Contents
+
+    1 Introduction
+    2 Using Snapper
+    3 Snapper ASH mode
+        3.1 Running Snapper in ASH mode on a single sesson
+        3.2 Running Snapper in ASH mode on all sessions (the whole instance)
+    4 Snapper V$ Performance Counter / Statistics mode 
+        4.1 Running snapper on a subset of instances sessions
+    5 Download Snapper
+    6 Further Reading
+    7 Feedback
+
+
+Introduction
+Oracle Session Snapper syntax and examples by Tanel Poder
+
+
+The Oracle Session Snapper v3 has some major improvements compared to old versions (v2 and v1). In addition to taking snapshots and reporting deltas of various V$ and X$ performance counters, it also samples session activity details from V$SESSION. This is pretty much like what Oracle's Active Session History does (ASH is essentially just a history of V$SESSION samples with few additional tricks). However, using ASH requires you to have additional Diagnostics Pack licenses, while querying V$SESSION (which is how Snapper works), doesn't. Starting from version 3.52, Snapper also supports the ASH-style sampling on Oracle 9.2 (in previous versions it required Oracle 10g+).
+
+Thanks to the ASH style sampling of V$SESSION, the Snapper can now report the TOP sessions, TOP wait events, TOP SQL_IDs, TOP PLSQL procedures causing the database activity and much more.
+
+NB! Even though I talk about ASH style sampling in Snapper, it's not Oracle's (separately licensed) ASH. It's just the same concept, but different tool. All that Snapper does is sampling of V$SESSION view using plain old PL/SQL, so that comes "for free" with Oracle.
+
+Snapper is meant to be a quick and easy ad-hoc performance troubleshooting tool for the field-DBAs out there who have to get their hands on and dirty whenever a database problem happens (and fix the problem fast!). It is meant to be a flexible first round performance troubleshooting tool, an entry point tool for troubleshooting, something which you can easily run in couple of seconds instead of having to immediately resort to heavier operations such as SQL tracing.
+
+Note that Snapper does not perform any magic for you. It does not make any smart performance recommendations or offer any tuning advice. All it does (and does well) is presenting the facts. It will take snapshots from views like V$SESSTAT and a few more and show you how much some performance counter incremented for a session during the snapshot period. Snapper v3 will additionally show you a TOP report of active V$SESSION samples taken during the snapshot period, just like ASH does. 
+
+Here are couple of important things about Snapper:
+
+    Snapper does not create any objects in the database
+    Snapper is just an anonymous PL/SQL block, parsed and compiled on the fly
+    Snapper requires no change whatsoever in the database schema or settings!
+
+
+Note that this page you're reading right now is not a full systematic performance troubleshooting guide, but rather just a tool page which illustrates the capabilities of Session Snapper.
+
+Here are few examples of what the new Snapper 3 can do:
+
+Using Snapper
+At first examples I'm assuming that you've been able to find out the SID of the badly behaving session (or job running slow). Let say its 144, so you can run Snapper like that:
+
+SQL> @snapper ash 5 1 144
+
+
+If you aren't familiar with Snapper already, it takes 4 parameters:
+
+    Parameter 1 (ash) states what kind of measurements to do:
+        In Snapper v3 you can use "ASH" for Active Session History style sampling
+        In all snapper versions you can use "STATS" for taking snapshots of V$SESSTAT and other performance counters
+
+    Parameter 2 (5) states the snapshot period length
+        In this example this means that Snapper measures session activity for 5 seconds and then prints the report
+
+    Parameter 3 (1) states how many times to take the performance snapshot and report. 
+        For first round troubleshooting I usually use only 1 snapshot/report, but sometimes I use a larger number to get multiple snapshots and reports over time
+
+    Parameter 4 (144) is the SID of the SID of the session of interest
+        You can specify only one SID as in example - 144
+        You can specify multiple comma-separated SIDs - 144,145,200
+        You can speficy "all" to mean all sessions in the instance - all
+        You can use special options like user=SYSTEM or program=sqlplus or module=HR to include sessions where corresponding column in V$SESSION matches the given string (look into the snapper script for full syntax)
+        Finally, you can use any subquery for specifying any set of SIDs like, "select sid from v$session where username='SYSTEM' and program not like 'sqlplus%'"
+
+
+See examples below.
+
+Snapper ASH mode
+Running Snapper in ASH mode on a single sesson
+First, lets assume we've identified the SID of a badly behaving batch job's session is 144, let's run snapper in ASH mode, with 5 second snapshot length, once on SID 144:
+
+SQL> @snapper ash 5 1 144
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+
+-----------------------------------------------------------------------
+Active% | SQL_ID          | EVENT                     | WAIT_CLASS
+-----------------------------------------------------------------------
+   100% | 5htvg1rhy5dfv   | enq: TM - contention      | Application
+
+--  End of ASH snap 1, end=2010-03-22 19:54:09, seconds=5, samples_taken=42
+
+
+PL/SQL procedure successfully completed.
+
+
+Here you go, the output happens to be pretty simple in this case. Let's see what it means:
+
+    Active% is the actual measured metric - the activity of a session. That's the column which says how much of the response time during Snapper run this session spent doing the operation/activity listed on that output line.
+    So, 100% means here that this session (144) was executing the SQL_ID 5htvg1rhy5dfv 100% of its time!
+    While executing that SQL it also happened to be waiting for enq: TM - contention wait event all of the total time (the 5 seconds we spent sampling with Snapper). 
+
+As Snapper's ash functionality (just like ASH itself) works by regularly sampling V$SESSION (kind of taking a snapshot from it), it doesn't capture every single thing that the session does. However it does capture everything significant.
+
+For example, we can't be fully sure that this session really was 100% doing the operation mentioned above, perhaps it was only busy running that SQLID and waiting for that event only 99% of its response time and it did something else for 1% of time. Snapper could just have missed this other 1% due sampling as this "other" thing happened so fast between 2 samples, so it wasn't captured. However when something happens infrequently and very fast so that it isn't even recorded in one sample of many taken, then it can't be too significant! If something takes 50% of the response time, then there will sure be some samples (roughly half of total taken) showing that "something" happening. 
+
+The footer of snapper report output shows when the snapshot period ended, over how many seconds the sampling was done and how many V$SESSION samples were done during that period. Above we see that Snapper took 42 ASH samples during the 5 seconds (over 8 samples per second). Snapper is written the way that it samples very fast when the snapshot period is short (up to 10 seconds) but lowers the sampling frequency when the snapshot period is longer, to reduce measurement overhead. Over long periods the sampling frequency will be 1Hz, one sampling per second just like ASH.
+
+Continuing the above example, we have identified that the session 144 was waiting for an enqueue lock all of its time. We probably want to know now who's blocking us and what kind of resource we were trying to lock. In case of enqueue lock waits, the wait event additional detail columns (Parameter2,3) will give us additional info about the object/resource we were trying to lock (look into V$LOCK type for their meanings). So we want to sample the P2,P3 columns from V$SESSION to get more detailed info about this wait. Also, in case of enqueue waits we can sample V$SESSION.BLOCKING_SESSION column (available from 10g) to see which session was blocking us. 
+
+So, instead of relying on the default ASH TOP activity grouping, I can specify these V$SESSION columns I want, using the ASH= syntax. Note that not all V$SESSION columns are available in Snapper, however the most important ones are. I can just specify the list of columns I want to sample, separated by + sign:
+
+SQL> @snapper ash=sql_id+event+wait_class+blocking_session+p2+p3 5 1 144
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+
+-----------------------------------------------------------------------------------------------------------------------
+Active% | SQL_ID          | EVENT                     | WAIT_CLASS      | BLOCKING_SESSION  | P2           | P3
+-----------------------------------------------------------------------------------------------------------------------
+   100% | 5htvg1rhy5dfv   | enq: TM - contention      | Application     | 162               | 78452        | 0
+
+--  End of ASH snap 1, end=2010-03-22 19:55:31, seconds=5, samples_taken=46
+
+
+PL/SQL procedure successfully completed.
+
+Now we see the additional details immediately. The SID of our blocker is 162 (and I can run snapper on that session to see what it is doing) and the object ID of the locked object we are waiting for is 78452.
+
+
+The above example didn't really show the profiling capability of Snapper as the session was stuck running the same statement, waiting for the same thing.
+
+Let's see another example:
+
+SQL> @snapper ash 5 1 156
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+
+-----------------------------------------------------------------------
+Active% | SQL_ID          | EVENT                     | WAIT_CLASS
+-----------------------------------------------------------------------
+    36% | 3jbwa65aqmkvm   | read by other session     | User I/O
+    33% | 3jbwa65aqmkvm   | direct path read          | User I/O
+    28% | 3jbwa65aqmkvm   | ON CPU                    | ON CPU
+     3% | 3jbwa65aqmkvm   | db file sequential read   | User I/O
+
+--  End of ASH snap 1, end=2010-03-22 19:50:11, seconds=5, samples_taken=36
+
+
+Apparently in this case the session is not stuck waiting for a single wait event only, it seems to be running the same SQL as all the SQL ID's in the TOP session activity report are the same, but during the execution of that SQL the session apparently waits for different wait events and also spends some time on CPU. See that the CPU usage of that session was 28% only during the Snapper run and 72% of the remaining response time is all spent on physical IO related wait events (36%+33%+3%). 
+
+So, when troubleshooting that session's performance, I would already know that 100% of the response time (during snapper run at least) was spent executing the SQL with ID 3jbwa65aqmkvm and the execution process itself waited 72% of its time for IO, so now you know exactly into which SQL statement to look.
+
+
+Let's see one more example:
+
+SQL> @snapper ash 5 1 156
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+
+-----------------------------------------------------------------------
+Active% | SQL_ID          | EVENT                     | WAIT_CLASS
+-----------------------------------------------------------------------
+    30% | gvgdv2v90wfa7   | db file sequential read   | User I/O
+     7% | 0bzhqhhj9mpaa   | db file sequential read   | User I/O
+     5% | 75621g9y3xmvd   | db file sequential read   | User I/O
+     5% | 05s4vdwsf5802   | db file sequential read   | User I/O
+     5% | 5raw2bzx227wp   | db file sequential read   | User I/O
+     2% | 0yas01u2p9ch4   | db file sequential read   | User I/O
+
+--  End of ASH snap 1, end=2010-03-22 19:50:29, seconds=5, samples_taken=43
+
+
+In this case it looks like there are many different statements executed during the 5-second snapper run. The TOP one seems to be the one which was active at least 30% of its time (and waiting for db file sequential read). 
+
+As there are multiple different statements reported, all taking a notable amount of response time - and all because of User I/O wait events, this may be a case for investigating IO subsystem problems (as suddenly all SQL statements report IO as their top waits).
+
+NB! There's one more interesting and important thing to see - the sum of Active% samples is 54% only! This means that this session was ative only (roughly) 54% during the sampling time! Therefore the rest of time it was idle, waiting for next request to come in from the application, over the network. In cases where you see the database session being active only a small minority of time, then it doesn't make sense to tune anything in the database - you'll need to see why isn't the application sending new requests to the database fast enough. 
+
+The main reasons for session's being idle are simple:
+
+    User think time. User went to drink coffee or their PC is so slow that they can't do much with their application :-)
+    Application think time. This often happens when application servers are overloaded or have some bad code in them. The application is so busy or stuck so that it isn't able to send the requests to database and process resulting data too fast.
+    Lastly, network latency and throughput. I deliberately left this as last, as it makes sense to see what the (higher levels) users and applications are actually doing, instead of immediately assuming that the problem must be in network.
+
+Note that as I said earlier, Snapper is a tool for getting you the facts, performance numbers. It doesn't make performance recommendations for you, you still need to follow a systematic approach for troubleshooting and tuning, Snapper is tool which supports it. I will write more about systematic tuning & troubleshooting approach in my living book about Oracle Performance (or you could just attend one of my seminars ;-)
+
+So, that's all about single session snapshots, but hey, Snapper can do more!
+
+Sometimes you have multiple sessions you want to measure, sometimes you don't even know the SIDs in advance and sometimes you want to see the whole instance activity. Snapper can help out here too!
+
+Running Snapper in ASH mode on all sessions (the whole instance)
+Making snapper to measure activity of all sessions is easy, you just specify all instead of the SID:
+
+SQL> @snapper ash 5 1 all
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+-----------------------------------------------------------------------
+Active% | SQL_ID          | EVENT                     | WAIT_CLASS
+-----------------------------------------------------------------------
+    69% | 3h1z39qtgwc5h   | db file scattered read    | User I/O
+    29% | fy8n9175jyj7s   | db file scattered read    | User I/O
+     9% |                 | log file parallel write   | System I/O
+     2% | fy8n9175jyj7s   | ON CPU                    | ON CPU
+     2% |                 | control file parallel wri | System I/O
+
+--  End of ASH snap 1, end=2010-03-22 17:33:17, seconds=5, samples_taken=45
+
+PL/SQL procedure successfully completed.
+
+Note that the Active% shows still the response time of one (1) session! If let say 2 sessions are waiting for a lock all their response time, you'd see 200% wait time for it.
+
+Let say I want to break down how much individual sessions are waiting for some event, I can add sid column to the ASH parameter (as seen below), now the group by for TOP report is done by SID,event and wait_class:
+
+SQL> @snapper ash=sid+event+wait_class 5 1 all
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+
+--------------------------------------------------------------
+Active% |    SID | EVENT                     | WAIT_CLASS
+--------------------------------------------------------------
+    95% |    133 | db file scattered read    | User I/O
+     8% |    165 | control file parallel wri | System I/O
+     5% |    133 | db file sequential read   | User I/O
+
+--  End of ASH snap 1, end=2010-03-22 17:33:53, seconds=5, samples_taken=40
+
+
+PL/SQL procedure successfully completed.
+
+See how the SID 133 had waited ~95% of its response time for db file scattered read and rest 5% for db file sequential read. The occasional CPU usage between IO operations was so short that Snapper's V$SESSION sampling didn't even see it, in other words, this session did not use CPU significantly during the Snapper run.
+
+
+Taking multiple Session Activity reports with Snapper
+
+Sometimes just one TOP report as seen above may not be enough. You might want to look into the session / instance activity data from multiple different angles (group the ASH samples by different fields). That's why I have added ash1, ash2 and ash3 parameters to Snapper syntax, you can show up to 4 ASH TOP activity breakdowns in one Snapper run. For example, let say I want to break the session activity down by also PLSQL package's object_id and procedure ID in it, to see whether there's some PL/SQL package causing most of the work (these columns are available from 10.2.0.3 in V$SESSION):
+
+SQL> @snapper ash=sid+event+wait_class,ash1=plsql_object_id+plsql_subprogram_id+sql_id 5 1 all
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+
+--------------------------------------------------------------
+Active% |    SID | EVENT                     | WAIT_CLASS
+--------------------------------------------------------------
+    70% |    133 | db file scattered read    | User I/O
+    25% |    133 | db file sequential read   | User I/O
+     9% |    165 | control file parallel wri | System I/O
+     7% |    166 | log file parallel write   | System I/O
+     5% |    133 | ON CPU                    | ON CPU
+
+---------------------------------------------------
+Active% | PLSQL_OBJE | PLSQL_SUBP | SQL_ID
+---------------------------------------------------
+    43% |            |            | dv59rkngpa8m1
+    30% |            |            | b8qywu6ug00u3
+    23% |            |            | fgkm2nvqhyyqh
+    16% |            |            |
+     2% | 5357       | 135        | 82hxvr8kxuzjq
+     2% | 4345       | 105        | 1gu8t96d0bdmu
+
+--  End of ASH snap 1, end=2010-03-22 17:34:51, seconds=5, samples_taken=44
+
+Let say I want to include one more report, which shows me TOP program, module and action from the session activity samples:
+
+SQL> @snapper ash=sid+event+wait_class,ash1=plsql_object_id+plsql_subprogram_id+sql_id,ash2=program+module+action 5 1 all
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+
+--------------------------------------------------------------
+Active% |    SID | EVENT                     | WAIT_CLASS
+--------------------------------------------------------------
+   100% |    133 | db file scattered read    | User I/O
+     5% |    165 | control file parallel wri | System I/O
+     2% |    162 | ON CPU                    | ON CPU
+     2% |    167 | db file parallel write    | System I/O
+     2% |    166 | log file parallel write   | System I/O
+
+---------------------------------------------------
+Active% | PLSQL_OBJE | PLSQL_SUBP | SQL_ID
+---------------------------------------------------
+    77% |            |            | a5xyjp9gt796s
+    23% |            |            | 4g4u44bk830ms
+    12% |            |            |
+
+-------------------------------------------------------------------------------------------
+Active% | PROGRAM                   | MODULE                    | ACTION
+-------------------------------------------------------------------------------------------
+   100% | sqlplus@mac01 (TNS V1-V3) | sqlplus@mac01 (TNS V1-V3) |
+     5% | oracle@solaris02 (CKPT)   |                           |
+     2% | oracle@solaris02 (DBW0)   |                           |
+     2% | oracle@solaris02 (CJQ0)   |                           |
+     2% | oracle@solaris02 (LGWR)   |                           |
+
+--  End of ASH snap 1, end=2010-03-22 17:35:06, seconds=5, samples_taken=43
+
+Similarly you can use ash3 parameter. Note that if you just use the ash parameters without = and column list, it uses some default TOP groupings, which are configurable - look for CONFIG in snapper.sql file.
+
+All the stuff above is available from Snapper v3. However it's only a part of Snapper's full capabilities. Sometimes knowing the TOP SQL_ID and wait event is not enough. Think about cases where a session is 100% on CPU and doesn't wait for anything and there's nothing obviously wrong with the SQL execution plan. This is when you want to know what exactly is the session doing. This is where the Oracle's dynamic performance counters come into play - I'm talking mainly about V$SESSTAT statistics:
+Snapper V$ Performance Counter / Statistics mode 
+
+Snapper has had the Statistics mode since version 1. That's the reason why I initially wrote Snapper, to help me with performance troubleshooting, especially in cases where the conventional tools like SQL trace or instance-level performance tools like AWR/Statspack didn't show anything useful. Starting from v3, Snapper does not automatically show you the V$SESSTAT stats, as Snapper is meant to be used as an instance-wide troubleshooting tool now as well (and querying V$SESSTAT for all sessions may be expensive when you have thousands of sessions in your instance).
+
+So, if you want to drill down to V$SESSTAT samples, you'll need to use stats parameter, which tells Snapper to take snapshots of V$SESSTAT and other V$ views (or instead you could use all which enables both ash and stats)
+
+Additionally you can specify what kind of stats to capture, in the gather option. The options are following (taken directly from documentation section in Snapper script's header):
+
+    Session-level stats:
+        s - Session Statistics from v$sesstat
+        t - Session Time model info from v$sess_time_model
+        w - Session Wait statistics from v$session_event and v$session_wait
+
+    Instance-level stats:
+        L - instance Latch get statistics ( gets + immediate_gets ) from v$latch
+        e - instance Enqueue lock get statistics from v$enqueue_stat
+        b - buffer get Where statistics from x$kcbsw -- useful in versions up to 10.2.x
+        a - All above
+
+If the gather option is omitted (but stats is enabled) then Snapper will collect the session level stats (s,t,w) only.
+
+An example follows, I'm taking ash session activity snapshots from all sessions, but I also ask Snapper to gather Time Model Stats (t) and V$SESSTAT stats (s), but only include time model stats (tinclude) which have string %CPU% in the name and include only these V$SESSTAT stats (sinclude) which contain word %parse%:
+
+
+SQL> @snapper ash=event+wait_class,stats,gather=ts,tinclude=CPU,sinclude=parse 5 1 all
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+----------------------------------------------------------------------------------------------------------------------
+    SID, USERNAME  , TYPE, STATISTIC                               ,         DELTA, HDELTA/SEC,    %TIME, GRAPH
+----------------------------------------------------------------------------------------------------------------------
+    119, SYS       , STAT, parse count (total)                     ,            12,        2.4,
+    133, SYS       , STAT, parse time cpu                          ,           404,       80.8,
+    133, SYS       , STAT, parse time elapsed                      ,           418,       83.6,
+    133, SYS       , STAT, parse count (total)                     ,         11241,      2.25k,
+    133, SYS       , STAT, parse count (hard)                      ,         11241,      2.25k,
+    159, (J000)    , TIME, DB CPU                                  ,           859,    171.8us,      .0%, |          |
+    161, (MMON)    , STAT, parse count (total)                     ,             5,          1,
+    161, (MMON)    , STAT, parse count (hard)                      ,             3,         .6,
+    161, (MMON)    , TIME, background cpu time                     ,          8629,     1.73ms,      .2%, |          |
+    162, (CJQ0)    , STAT, parse count (total)                     ,             1,         .2,
+    162, (CJQ0)    , TIME, background cpu time                     ,          3242,    648.4us,      .1%, |          |
+    167, (DBW0)    , TIME, background cpu time                     ,           142,     28.4us,      .0%, |          |
+    170, (PMON)    , TIME, background cpu time                     ,          1267,    253.4us,      .0%, |          |
+--  End of Stats snap 1, end=2010-03-22 18:02:28, seconds=5
+
+
+
+-----------------------------------------------------
+Active% | EVENT                     | WAIT_CLASS
+-----------------------------------------------------
+   105% | ON CPU                    | ON CPU
+    17% | db file sequential read   | User I/O
+     2% | log file parallel write   | System I/O
+
+--  End of ASH snap 1, end=2010-03-22 18:02:28, seconds=5, samples_taken=41
+
+
+PL/SQL procedure successfully completed.
+
+
+In upper part of above output, see how Snapper's stats mode will easily bring out a session 133 which is doing 2.25 thousand hard parses per second (which is a lot!). I could use any of the other stats available in V$SESSTAT (over 600 different stats for each session in Oracle 11.2). For example if I had used "redo size" in sinclude parameter, I would have easily seen which session generates the most redo.
+
+Another thing to note is that even though the ASH section below says there was CPU activity worth of 105% of a single session's response time (which means that there must have been more than one session using that CPU), the time model stats above (stats with type=TIME) don't report significant DB CPU usage at all. The problem here is measurement granularity. Time model stats are updated in the V$ views only in the end of the database call, but if the database call is a long-running one (like in my test case) then the stats in V$SESS_TIME_MODEL are updated roughly every 5 seconds by default. Thanks to my short Snapper run time (5 seconds) the script apparently finished before the V$SESS_TIME_MODEL in-memory array update took place by that session with the long running database call. If you run snapper with longer sampling time, like 60 second, you should see all the time model stats in place.
+
+So far we've covered how to run snapper on one session or the whole instance. Sometimes you'd want to monitor all sessions of a specific user, service or program. This is possible in Snapper too:
+
+
+Running snapper on a subset of instances sessions
+Starting from v3, Snapper has convenient ways for specifying sessions belonging so specific user, application, service, etc. For example, instead of specifying the SID as 4th parameter, you can just write user=XYZ (or username=XYZ):
+
+SQL> @snapper ash=sid+event+wait_class,ash1=sid+sqlid+module,stats,gather=ts,tinclude=CPU,sinclude=parse 5 1 user=SOE
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+----------------------------------------------------------------------------------------------------------------------
+    SID, USERNAME  , TYPE, STATISTIC                               ,         DELTA, HDELTA/SEC,    %TIME, GRAPH
+----------------------------------------------------------------------------------------------------------------------
+      9, SOE       , TIME, DB CPU                                  ,         30000,        6ms,      .6%, |@         |
+     17, SOE       , TIME, DB CPU                                  ,         70000,       14ms,     1.4%, |@         |
+     21, SOE       , TIME, DB CPU                                  ,         30000,        6ms,      .6%, |@         |
+    144, SOE       , STAT, parse count (total)                     ,             2,         .4,
+    144, SOE       , TIME, DB CPU                                  ,        370000,       74ms,     7.4%, |@         |
+    156, SOE       , TIME, DB CPU                                  ,         50000,       10ms,     1.0%, |@         |
+--  End of Stats snap 1, end=2010-03-22 18:34:09, seconds=5
+
+
+
+--------------------------------------------------------------
+Active% |    SID | EVENT                     | WAIT_CLASS
+--------------------------------------------------------------
+   100% |     21 | read by other session     | User I/O
+    93% |    144 | read by other session     | User I/O
+    83% |    156 | read by other session     | User I/O
+    73% |      9 | read by other session     | User I/O
+    54% |     17 | db file scattered read    | User I/O
+    27% |      9 | db file scattered read    | User I/O
+    27% |     17 | read by other session     | User I/O
+    17% |    156 | db file scattered read    | User I/O
+    17% |     17 | direct path read          | User I/O
+     7% |    144 | ON CPU                    | ON CPU
+
+--------------------------------------------------------------
+Active% |    SID | SQL_ID          | MODULE
+--------------------------------------------------------------
+   100% |     21 | 3jbwa65aqmkvm   | Process Orders
+   100% |      9 | 3jbwa65aqmkvm   | Process Orders
+   100% |    144 | 3jbwa65aqmkvm   | Process Orders
+   100% |    156 | 3jbwa65aqmkvm   | Process Orders
+   100% |     17 | 3jbwa65aqmkvm   | Process Orders
+
+--  End of ASH snap 1, end=2010-03-22 18:34:09, seconds=5, samples_taken=41
+
+
+Thanks to the parameters specified above (ash and ash1) we do get different breakdowns of the same session activity data and we have measured only the sessions belonging to user SOE (in other words, where username='SOE' in V$SESSION).
+
+In additon to user you can use other (self-explanatory) parameters:
+
+    username (same as user)
+    sid
+    spid (same as pid and ospid)
+    program
+    machine
+    osuser
+    module
+    action
+    client_id
+
+You can not combine these parameters into any AND or OR conditions though, you can only pass in one parameter at a time using the above convenient syntax.
+
+However if you want to be very precise about what sessions Snapper monitors (if you want to add multiple and/or conditions to select sessions of interest), then you can do the session selection the old way (supported in Snapper v1 and v2), check the red text:
+
+SQL> @snapper ash=sid+event+wait_class,ash1=sid+sqlid+module,stats,gather=ts,tinclude=CPU,sinclude=parse 5 1 "select sid from v$session where username = 'SOE' and program like 'JDBC%'"
+Sampling...
+
+-- Session Snapper v3.10 by Tanel Poder @ E2SN ( http://tech.e2sn.com )
+
+----------------------------------------------------------------------------------------------------------------------
+    SID, USERNAME  , TYPE, STATISTIC                               ,         DELTA, HDELTA/SEC,    %TIME, GRAPH
+----------------------------------------------------------------------------------------------------------------------
+      9, SOE       , TIME, DB CPU                                  ,         50000,       10ms,     1.0%, |@         |
+     17, SOE       , TIME, DB CPU                                  ,         60000,       12ms,     1.2%, |@         |
+     21, SOE       , TIME, DB CPU                                  ,         70000,       14ms,     1.4%, |@         |
+    144, SOE       , TIME, DB CPU                                  ,         60000,       12ms,     1.2%, |@         |
+    156, SOE       , TIME, DB CPU                                  ,         50000,       10ms,     1.0%, |@         |
+--  End of Stats snap 1, end=2010-03-22 18:34:32, seconds=5
+
+
+
+--------------------------------------------------------------
+Active% |    SID | EVENT                     | WAIT_CLASS
+--------------------------------------------------------------
+    97% |      9 | read by other session     | User I/O
+    74% |    144 | direct path read          | User I/O
+    72% |    156 | db file scattered read    | User I/O
+    72% |     21 | direct path read          | User I/O
+    72% |     17 | direct path read          | User I/O
+    28% |    156 | read by other session     | User I/O
+    26% |     17 | db file scattered read    | User I/O
+    26% |     21 | read by other session     | User I/O
+    26% |    144 | read by other session     | User I/O
+     3% |      9 | db file scattered read    | User I/O
+
+--------------------------------------------------------------
+Active% |    SID | SQL_ID          | MODULE
+--------------------------------------------------------------
+   100% |     21 | 3jbwa65aqmkvm   | Process Orders
+   100% |      9 | 3jbwa65aqmkvm   | Process Orders
+   100% |    144 | 3jbwa65aqmkvm   | Process Orders
+   100% |    156 | 3jbwa65aqmkvm   | Process Orders
+   100% |     17 | 3jbwa65aqmkvm   | Process Orders
+
+--  End of ASH snap 1, end=2010-03-22 18:34:32, seconds=5, samples_taken=39
+
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+
+You can write any subquery between double-quotes as the SID parameter, as long as it fits onto the command line and returns a single number column with a list of SIDs in it!
+
+In my case I "select SID from V$SESSION where ...." but this query doesn't even have to query V$SESSION, but may query let say some E-Business Suite, PeopleSoft or SAP batch job scheduling table (with currently running batch jobs SIDs in it) instead!
+
+
+Download Snapper
+
+This was just an intro to Snapper's capabilities! It can gather and show much more performance data and even persist it to a tracefile if you use the trace option!
+
+You can download latest version of Snapper here:
+
+    Snapper v3.5 - http://files.e2sn.com/scripts/snapper.sql
+
+As snapper v3.5 supports Oracle 9.2 now, there's no need to use the old Snapper v2 anymore. Nevertheless, if you need it for some reason, here it is: 
+
+    Snapper v2 - http://files.e2sn.com/scripts/snapper_v2.sql
+
+
+Further Reading
+
+I have written multiple Snapper articles in past in my blog (about the version 1 and 2) so you might want to browse through these too (note that there are some syntax changes in Snapper v3. You can see all Snapper-related articles at my blog here:
+
+    http://blog.tanelpoder.com/?s=snapper
+
+
+Of course if you want to get really good at using the Snapper script for practical performance tuning and troubleshooting, then check out my seminar offering (online seminars are coming soon! ;-)
+
